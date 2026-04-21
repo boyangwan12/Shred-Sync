@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model DailyLog {
+  id        Int      @id @default(autoincrement())
+  date      String   @unique
+  dayType   String   @map("day_type")
+  carbType  String   @map("carb_type")
+
+  caloriesTarget Int?    @map("calories_target")
+  proteinTarget  Int?    @map("protein_target")
+  carbsTarget    Int?    @map("carbs_target")
+  fatTarget      Int?    @map("fat_target")
+
+  caloriesActual Int?    @map("calories_actual")
+  proteinActual  Float?  @map("protein_actual")
+  carbsActual    Float?  @map("carbs_actual")
+  fatActual      Float?  @map("fat_actual")
+
+  weightLbs  Float? @map("weight_lbs")
+  morningHr  Int?   @map("morning_hr")
+
+  energyScore  Int? @map("energy_score")
+  satietyScore Int? @map("satiety_score")
+  pumpScore    Int? @map("pump_score")
+
+  workoutDurationMin Int? @map("workout_duration_min")
+  workoutActiveCal   Int? @map("workout_active_cal")
+  workoutTotalCal    Int? @map("workout_total_cal")
+  workoutAvgHr       Int? @map("workout_avg_hr")
+  workoutMaxHr       Int? @map("workout_max_hr")
+
+  dailyTotalCalBurned Int? @map("daily_total_cal_burned")
+
+  liverGlycogenPct  Float? @map("liver_glycogen_pct")
+  muscleGlycogenPct Float? @map("muscle_glycogen_pct")
+  fatBurningPct      Float? @map("fat_burning_pct")
+
+  // AutoSleep-derived metrics (nullable — not all days have CSV data)
+  hrvMs              Float?  @map("hrv_ms")
+  sleepMinutes       Int?    @map("sleep_minutes")
+  deepSleepMinutes   Int?    @map("deep_sleep_minutes")
+  sleepBpm           Float?  @map("sleep_bpm")
+  wakingBpm          Float?  @map("waking_bpm")
+
+  hrvMsAvg7            Float?  @map("hrv_ms_avg7")
+  sleepMinutesAvg7     Int?    @map("sleep_minutes_avg7")
+  deepSleepMinutesAvg7 Int?    @map("deep_sleep_minutes_avg7")
+  sleepBpmAvg7         Float?  @map("sleep_bpm_avg7")
+  wakingBpmAvg7        Float?  @map("waking_bpm_avg7")
+
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  workoutExercises WorkoutExercise[]
+
+  @@map("daily_logs")
+}
+
+model Exercise {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  category  String   // chest, back, shoulders, arms, legs, core
+  equipment String?  // barbell, dumbbell, cable, machine, smith, bodyweight
+  createdAt DateTime @default(now()) @map("created_at")
+
+  workoutExercises WorkoutExercise[]
+
+  @@map("exercises")
+}
+
+model WorkoutExercise {
+  id         Int      @id @default(autoincrement())
+  dailyLogId Int      @map("daily_log_id")
+  exerciseId Int      @map("exercise_id")
+  sortOrder  Int      @default(0) @map("sort_order")
+  notes      String?
+
+  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  exercise   Exercise @relation(fields: [exerciseId], references: [id])
+  sets       ExerciseSet[]
+
+  @@map("workout_exercises")
+}
+
+model ExerciseSet {
+  id                Int      @id @default(autoincrement())
+  workoutExerciseId Int      @map("workout_exercise_id")
+  setNumber         Int      @map("set_number")
+  weightLbs         Float?   @map("weight_lbs")
+  reps              Int?
+  rpe               Int?
+  isWarmup          Boolean  @default(false) @map("is_warmup")
+  isPerSide         Boolean  @default(false) @map("is_per_side")
+  notes             String?
+
+  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@map("exercise_sets")
+}
+
+model WeeklyCheckin {
+  id             Int      @id @default(autoincrement())
+  weekNumber     Int      @map("week_number")
+  startDate      String?  @map("start_date")
+  endDate        String?  @map("end_date")
+  targetWeight   Float?   @map("target_weight")
+  actualAvgWeight Float?  @map("actual_avg_weight")
+  avgCalories    Float?   @map("avg_calories")
+  avgMorningHr   Float?   @map("avg_morning_hr")
+  avgEnergy      Float?   @map("avg_energy")
+  avgSatiety     Float?   @map("avg_satiety")
+  weightChange   Float?   @map("weight_change")
+  onTrack        Boolean? @map("on_track")
+  adjustment     String?
+  notes          String?
+
+  @@map("weekly_checkins")
+}

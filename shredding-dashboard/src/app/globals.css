@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --surface: #141414;
+  --surface-hover: #1a1a1a;
+  --border: #262626;
+  --muted: #737373;
+  --teal: #1D9E75;
+  --amber: #EF9F27;
+  --red: #E24B4A;
+  --blue: #378ADD;
+  --orange: #D85A30;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-teal: var(--teal);
+  --color-amber: var(--amber);
+  --color-red: var(--red);
+  --color-blue: var(--blue);
+  --color-orange: var(--orange);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Input styling */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Chart container */
+.chart-container {
+  position: relative;
+  width: 100%;
+}
