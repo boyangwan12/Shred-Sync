@@ -63,8 +63,8 @@ export async function GET(request: NextRequest) {
     const yesterdayStr = addDaysIso(date, -1);
     const yesterdayLog = history.find(h => h.date === yesterdayStr) ?? null;
     const yesterdayHrvDelta =
-      yesterdayLog?.hrvMs != null && baseline?.hrvMs != null
-        ? (yesterdayLog.hrvMs - baseline.hrvMs) / baseline.hrvMs
+      yesterdayLog?.hrvMs != null && baseline?.hrvMsAvg7 != null
+        ? (yesterdayLog.hrvMs - baseline.hrvMsAvg7) / baseline.hrvMsAvg7
         : null;
 
     return Response.json({
