@@ -101,13 +101,13 @@ export default function WorkoutCalendar({
   });
 
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3" style={{ maxHeight: 220 }}>
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3">
       {/* Month header with navigation */}
       <div className="flex items-center justify-between mb-2">
         <button
           type="button"
           onClick={prevMonth}
-          className="w-7 h-7 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors"
+          className="w-10 h-10 sm:w-7 sm:h-7 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -117,7 +117,7 @@ export default function WorkoutCalendar({
         <button
           type="button"
           onClick={nextMonth}
-          className="w-7 h-7 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors"
+          className="w-10 h-10 sm:w-7 sm:h-7 flex items-center justify-center rounded text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -151,9 +151,8 @@ export default function WorkoutCalendar({
               key={cell.dateStr}
               type="button"
               onClick={() => onDateSelect(cell.dateStr)}
-              className="flex flex-col items-center justify-center py-1 rounded transition-colors"
+              className="flex flex-col items-center justify-center py-1 rounded transition-colors min-h-[44px] sm:min-h-[28px]"
               style={{
-                minHeight: 28,
                 outline: isSelected ? `2px solid var(--teal)` : 'none',
                 outlineOffset: -1,
                 backgroundColor: isToday && !isSelected ? 'var(--surface-hover)' : 'transparent',
