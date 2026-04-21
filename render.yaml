@@ -9,8 +9,9 @@ services:
     startCommand: npm start
     plan: free
     envVars:
-      - key: NODE_ENV
-        value: production
+      # Don't set NODE_ENV here — Render sets it to "production" at runtime
+      # automatically. Setting it explicitly also applies during build, which
+      # makes npm ci skip devDependencies that Next.js needs to build.
       - key: TURSO_DATABASE_URL
         sync: false # set via Render dashboard
       - key: TURSO_AUTH_TOKEN
