@@ -121,7 +121,11 @@ export default function ExerciseCard({
   }, 0);
 
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden">
+    <div
+      data-testid="exercise-card"
+      data-exercise={exerciseName}
+      className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden"
+    >
       {/* Header — tap to collapse */}
       <div
         role="button"
