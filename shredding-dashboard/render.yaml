@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: shred-sync
+    runtime: node
+    rootDir: shredding-dashboard
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TURSO_DATABASE_URL
+        sync: false # set via Render dashboard
+      - key: TURSO_AUTH_TOKEN
+        sync: false # set via Render dashboard
+      - key: APP_PASSWORD
+        sync: false # set via Render dashboard
+      - key: APP_USER
+        value: me
