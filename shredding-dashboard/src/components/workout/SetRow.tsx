@@ -16,6 +16,7 @@ interface SetRowProps {
   reps: number | '';
   isPerSide: boolean;
   isWarmup: boolean;
+  notes?: string | null;
   equipment: string | null;
   onChange: (data: Partial<SetData>) => void;
   onRemove: () => void;
@@ -27,18 +28,22 @@ export default function SetRow({
   reps,
   isPerSide,
   isWarmup,
+  notes,
   equipment,
   onChange,
   onRemove,
 }: SetRowProps) {
   const isBodyweight = equipment === 'bodyweight';
+  // Per-side toggle only makes sense for implements with a shared load across two sides
+  // (barbell, smith bar, plate-loaded machines). Hide for dumbbells, cables, selector machines.
+  const hidePerSide =
+    isBodyweight || equipment === 'dumbbell' || equipment === 'cable';
   const total = totalWeight(weightLbs, isPerSide, equipment);
 
   return (
+    <div className={isWarmup ? 'opacity-60' : ''}>
     <div
-      className={`flex items-center gap-2 py-2 ${
-        isWarmup ? 'opacity-60' : ''
-      }`}
+      className="flex items-center gap-2 py-2"
     >
       {/* Set number */}
       <button
@@ -94,8 +99,8 @@ export default function SetRow({
         {isBodyweight ? 'BW' : total !== null ? total : '—'}
       </div>
 
-      {/* Per-side toggle (hidden for bodyweight) */}
-      {isBodyweight ? (
+      {/* Per-side toggle — only shown for implements with shared load across two sides */}
+      {hidePerSide ? (
         <span className="flex-shrink-0 w-[42px]" />
       ) : (
         <button
@@ -106,9 +111,13 @@ export default function SetRow({
               ? 'bg-[var(--blue)]/20 text-[var(--blue)] border border-[var(--blue)]/40'
               : 'bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]'
           }`}
-          title="Per side"
+          title={
+            isPerSide
+              ? 'ON: weight is loaded on ONE side — total will double'
+              : 'OFF: weight is total — tap if plates are loaded per side'
+          }
         >
-          /side
+          ×2 side
         </button>
       )}
 
@@ -123,6 +132,12 @@ export default function SetRow({
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
+      </div>
+      {notes && (
+        <div className="pl-10 pr-10 pb-2 -mt-1 text-[11px] text-[var(--muted)] italic leading-snug">
+          {notes}
+        </div>
+      )}
     </div>
   );
 }

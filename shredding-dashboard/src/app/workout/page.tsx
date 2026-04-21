@@ -28,11 +28,208 @@ function todayString() {
   return `${y}-${m}-${day}`;
 }
 
+function emptySet(setNumber = 1): ExerciseSetData {
+  return {
+    setNumber,
+    weightLbs: '',
+    reps: '',
+    isPerSide: false,
+    isWarmup: false,
+    notes: null,
+  };
+}
+
+async function suggestPlanFromHistory(
+  exerciseId: number,
+  currentDate: string,
+  equipment: string | null,
+  signal?: AbortSignal,
+): Promise<{ notes: string; sets: ExerciseSetData[] }> {
+  try {
+    const res = await fetch(`/api/exercises/${exerciseId}/history?limit=5`, {
+      signal,
+    });
+    if (!res.ok) return { notes: '', sets: [emptySet()] };
+    const history: Array<{
+      date: string;
+      dayType: string;
+      sets: Array<{
+        weightLbs: number | null;
+        reps: number | null;
+        rpe: number | null;
+        isPerSide: boolean;
+        isWarmup: boolean;
+      }>;
+    }> = await res.json();
+
+    const prior = history.find((h) => h.date !== currentDate);
+    if (!prior) return { notes: '', sets: [emptySet()] };
+
+    const working = prior.sets.filter((s) => !s.isWarmup);
+    if (working.length === 0) return { notes: '', sets: [emptySet()] };
+
+    // Prefer the heaviest set in the hypertrophy rep range (reps >= 6)
+    // to avoid anchoring on a peak single/double. Fall back to overall heaviest.
+    const byWeightDesc = (
+      a: { weightLbs: number | null; reps: number | null },
+      b: { weightLbs: number | null; reps: number | null },
+    ) => {
+      const wa = a.weightLbs ?? -1;
+      const wb = b.weightLbs ?? -1;
+      if (wb !== wa) return wb - wa;
+      return (b.reps ?? 0) - (a.reps ?? 0);
+    };
+    const inRange = working.filter((s) => (s.reps ?? 0) >= 6);
+    const pool = inRange.length > 0 ? inRange : working;
+    const top = [...pool].sort(byWeightDesc)[0];
+
+    const isBW = equipment === 'bodyweight' || top.weightLbs == null;
+    const topReps = top.reps ?? 8;
+    // Dumbbell weights are per-hand by convention; don't carry over isPerSide flag
+    const perSide = equipment === 'dumbbell' ? false : (top.isPerSide ?? false);
+    const dateLabel = prior.date.slice(5).replace('-', '/');
+    const round5 = (v: number) => Math.max(Math.round(v / 5) * 5, 5);
+    // If last top set was RPE >=9 (near failure), skip the +1 rep overload attempt.
+    // Match-only prescription respects a recovery-fatigue signal.
+    const nearFailure = typeof top.rpe === 'number' && top.rpe >= 9;
+
+    const sets: ExerciseSetData[] = [];
+
+    if (isBW) {
+      sets.push({
+        setNumber: 1,
+        weightLbs: '',
+        reps: Math.max(topReps - 3, 5),
+        isPerSide: perSide,
+        isWarmup: true,
+        notes: 'BW warmup',
+      });
+      sets.push({
+        setNumber: 2,
+        weightLbs: '',
+        reps: topReps,
+        isPerSide: perSide,
+        isWarmup: false,
+        notes: `match ${dateLabel}`,
+      });
+      sets.push({
+        setNumber: 3,
+        weightLbs: '',
+        reps: topReps,
+        isPerSide: perSide,
+        isWarmup: false,
+        notes: null,
+      });
+      sets.push({
+        setNumber: 4,
+        weightLbs: '',
+        reps: nearFailure ? topReps : topReps + 1,
+        isPerSide: perSide,
+        isWarmup: false,
+        notes: nearFailure
+          ? 'match (last session RPE 9+ — no overload)'
+          : '+1 rep target',
+      });
+      return {
+        notes: nearFailure
+          ? `Based on ${dateLabel} session (BW × ${topReps}, ${working.length} working sets). Last top set was RPE 9+ — match-only, no overload.`
+          : `Based on ${dateLabel} session (BW × ${topReps}, ${working.length} working sets). +1 rep target on final set.`,
+        sets,
+      };
+    }
+
+    const topW = top.weightLbs!;
+    const backOff = round5(topW * 0.85);
+    // Warmup ramp scales with absolute load to avoid absurd ultra-light or
+    // too-close-to-top warmup sets:
+    //   <80 lb   → single 70% warmup (skip 40% — it's trivial)
+    //   80–179   → 40% + 70% (standard two-step)
+    //   ≥180 lb  → 40% + 55% + 70% (three-step for heavy compounds)
+    const useFullRamp = topW >= 80;
+    const useHeavyRamp = topW >= 180;
+
+    let setNum = 1;
+
+    if (useFullRamp) {
+      sets.push({
+        setNumber: setNum++,
+        weightLbs: round5(topW * 0.4),
+        reps: topReps + 4,
+        isPerSide: perSide,
+        isWarmup: true,
+        notes: 'warmup',
+      });
+    }
+    if (useHeavyRamp) {
+      sets.push({
+        setNumber: setNum++,
+        weightLbs: round5(topW * 0.55),
+        reps: topReps + 2,
+        isPerSide: perSide,
+        isWarmup: true,
+        notes: 'warmup (heavy compound — 3-step ramp)',
+      });
+    }
+    sets.push({
+      setNumber: setNum++,
+      weightLbs: round5(topW * 0.7),
+      reps: Math.max(topReps - 2, 4),
+      isPerSide: perSide,
+      isWarmup: true,
+      notes: 'warmup',
+    });
+    sets.push({
+      setNumber: setNum++,
+      weightLbs: topW,
+      reps: topReps,
+      isPerSide: perSide,
+      isWarmup: false,
+      notes: `match ${dateLabel}`,
+    });
+    sets.push({
+      setNumber: setNum++,
+      weightLbs: topW,
+      reps: topReps,
+      isPerSide: perSide,
+      isWarmup: false,
+      notes: null,
+    });
+    sets.push({
+      setNumber: setNum++,
+      weightLbs: topW,
+      reps: nearFailure ? topReps : topReps + 1,
+      isPerSide: perSide,
+      isWarmup: false,
+      notes: nearFailure
+        ? 'match (last session RPE 9+ — no overload)'
+        : '+1 rep target, RPE 8 cap',
+    });
+    sets.push({
+      setNumber: setNum++,
+      weightLbs: backOff,
+      reps: topReps + 2,
+      isPerSide: perSide,
+      isWarmup: false,
+      notes: 'back-off AMRAP',
+    });
+
+    return {
+      notes: nearFailure
+        ? `Based on ${dateLabel} session (top: ${topW}×${topReps}, ${working.length} working sets). Last top set was RPE 9+ — match-only, focus on cleaner reps.`
+        : `Based on ${dateLabel} session (top: ${topW}×${topReps}, ${working.length} working sets). Warmup ramp + match + overload attempt + back-off.`,
+      sets,
+    };
+  } catch {
+    return { notes: '', sets: [emptySet()] };
+  }
+}
+
 export default function WorkoutPage() {
   const [date, setDate] = useState(todayString);
   const [dayType, setDayType] = useState<string | null>(null);
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [swapIndex, setSwapIndex] = useState<number | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [loadError, setLoadError] = useState('');
   const [workoutDays, setWorkoutDays] = useState<Array<{ date: string; dayType: string }>>([]);
@@ -40,6 +237,13 @@ export default function WorkoutPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const exercisesRef = useRef(exercises);
   exercisesRef.current = exercises;
+
+  // Track current date in a ref so async handlers never capture a stale value
+  const dateRef = useRef(date);
+  dateRef.current = date;
+
+  // Abort in-flight suggestion fetches when date changes or component unmounts
+  const suggestAbortRef = useRef<AbortController | null>(null);
 
   // Track whether we've loaded initial data (to avoid saving on mount)
   const hasLoadedRef = useRef(false);
@@ -76,6 +280,7 @@ export default function WorkoutPage() {
             reps: number | null;
             isPerSide: boolean;
             isWarmup: boolean;
+            notes: string | null;
           }[];
         }) => ({
           exerciseId: we.exerciseId,
@@ -89,6 +294,7 @@ export default function WorkoutPage() {
             reps: s.reps ?? '',
             isPerSide: s.isPerSide,
             isWarmup: s.isWarmup,
+            notes: s.notes ?? null,
           })),
         })
       );
@@ -104,6 +310,10 @@ export default function WorkoutPage() {
 
   useEffect(() => {
     hasLoadedRef.current = false;
+    // Cancel any pending suggestion fetch so it doesn't apply to the new date
+    suggestAbortRef.current?.abort();
+    // Cancel any pending auto-save targeted at the old date
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     fetchWorkout(date);
   }, [date, fetchWorkout]);
 
@@ -138,6 +348,7 @@ export default function WorkoutPage() {
             reps: s.reps === '' ? null : s.reps,
             isWarmup: s.isWarmup,
             isPerSide: s.isPerSide,
+            notes: s.notes ?? null,
           })),
         })),
       };
@@ -180,11 +391,50 @@ export default function WorkoutPage() {
     }, 0);
   }, 0);
 
-  function handleAddExercise(
+  async function handleAddExercise(
     exerciseId: number,
     exerciseName: string,
     equipment: string | null,
   ) {
+    // Capture date at call time and track it — bail if date changes mid-fetch
+    const capturedDate = dateRef.current;
+    const capturedSwapIndex = swapIndex;
+
+    // Cancel any in-flight suggestion fetch
+    suggestAbortRef.current?.abort();
+    const controller = new AbortController();
+    suggestAbortRef.current = controller;
+
+    const suggestion = await suggestPlanFromHistory(
+      exerciseId,
+      capturedDate,
+      equipment,
+      controller.signal,
+    );
+
+    // Bail if date changed while we were fetching — user moved on
+    if (capturedDate !== dateRef.current) return;
+    // Also bail if the fetch was aborted
+    if (controller.signal.aborted) return;
+
+    if (capturedSwapIndex !== null) {
+      setExercises((prev) =>
+        prev.map((ex, i) =>
+          i === capturedSwapIndex
+            ? {
+                ...ex,
+                exerciseId,
+                exerciseName,
+                equipment,
+                notes: suggestion.notes,
+                sets: suggestion.sets,
+              }
+            : ex,
+        ),
+      );
+      setSwapIndex(null);
+      return;
+    }
     setExercises((prev) => [
       ...prev,
       {
@@ -192,18 +442,15 @@ export default function WorkoutPage() {
         exerciseName,
         equipment,
         sortOrder: prev.length,
-        notes: '',
-        sets: [
-          {
-            setNumber: 1,
-            weightLbs: '',
-            reps: '',
-            isPerSide: false,
-            isWarmup: false,
-          },
-        ],
+        notes: suggestion.notes,
+        sets: suggestion.sets,
       },
     ]);
+  }
+
+  function handleSwapExercise(index: number) {
+    setSwapIndex(index);
+    setPickerOpen(true);
   }
 
   function handleUpdateExerciseSets(index: number, sets: ExerciseSetData[]) {
@@ -275,11 +522,15 @@ export default function WorkoutPage() {
         {exercises.map((ex, index) => (
           <ExerciseCard
             key={`${ex.exerciseId}-${index}`}
+            exerciseId={ex.exerciseId}
             exerciseName={ex.exerciseName}
             equipment={ex.equipment}
+            notes={ex.notes}
             sets={ex.sets}
+            currentDate={date}
             onUpdate={(sets) => handleUpdateExerciseSets(index, sets)}
             onRemove={() => handleRemoveExercise(index)}
+            onSwap={() => handleSwapExercise(index)}
           />
         ))}
       </div>
@@ -338,7 +589,10 @@ export default function WorkoutPage() {
       {/* Exercise picker modal */}
       <ExercisePicker
         open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+        onClose={() => {
+          setPickerOpen(false);
+          setSwapIndex(null);
+        }}
         onSelect={handleAddExercise}
       />
 

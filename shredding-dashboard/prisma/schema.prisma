@@ -59,8 +59,49 @@ model DailyLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   workoutExercises WorkoutExercise[]
+  foodItems        FoodPlanItem[]
 
   @@map("daily_logs")
+}
+
+model FoodPlanItem {
+  id          Int      @id @default(autoincrement())
+  dailyLogId  Int      @map("daily_log_id")
+  foodId      Int?     @map("food_id")
+  sortOrder   Int      @default(0) @map("sort_order")
+  meal        String?  // breakfast | preworkout | lunch | dinner | snack | postworkout | (null = unassigned)
+  name        String   // e.g. "卤鸡腿", "avocado" — denormalized for display
+  quantity    String?  // e.g. "115g", "1 whole", "0.5 cup"
+  grams       Float?   // parsed numeric grams when quantity is expressible
+  calories    Int?     // denormalized for display (source of truth is Food per-100g × grams when foodId set)
+  proteinG    Float?   @map("protein_g")
+  carbsG      Float?   @map("carbs_g")
+  fatG        Float?   @map("fat_g")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  dailyLog    DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  food        Food?    @relation(fields: [foodId], references: [id])
+
+  @@index([dailyLogId])
+  @@index([foodId])
+  @@map("food_plan_items")
+}
+
+model Food {
+  id               Int      @id @default(autoincrement())
+  name             String   @unique
+  caloriesPer100g  Int?     @map("calories_per_100g")
+  proteinPer100g   Float?   @map("protein_per_100g")
+  carbsPer100g     Float?   @map("carbs_per_100g")
+  fatPer100g       Float?   @map("fat_per_100g")
+  gramsPerUnit     Float?   @map("grams_per_unit") // for unit-based foods (e.g., "1 avocado" → 150g)
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  items            FoodPlanItem[]
+
+  @@map("foods")
 }
 
 model Exercise {

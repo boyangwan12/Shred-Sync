@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import SetRow, { type SetData } from './SetRow';
 import { totalWeight } from '@/lib/weight';
 
@@ -10,24 +10,82 @@ export interface ExerciseSetData {
   reps: number | '';
   isPerSide: boolean;
   isWarmup: boolean;
+  notes?: string | null;
+}
+
+interface LastSessionRef {
+  date: string;
+  dayType: string;
+  topWeight: number | null;
+  topReps: number | null;
+  setCount: number;
 }
 
 interface ExerciseCardProps {
+  exerciseId: number;
   exerciseName: string;
   equipment: string | null;
+  notes?: string | null;
   sets: ExerciseSetData[];
+  currentDate: string;
   onUpdate: (sets: ExerciseSetData[]) => void;
   onRemove: () => void;
+  onSwap?: () => void;
 }
 
 export default function ExerciseCard({
+  exerciseId,
   exerciseName,
   equipment,
+  notes,
   sets,
+  currentDate,
   onUpdate,
   onRemove,
+  onSwap,
 }: ExerciseCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [lastSession, setLastSession] = useState<LastSessionRef | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLastSession(null);
+    async function fetchLast() {
+      try {
+        const res = await fetch(`/api/exercises/${exerciseId}/history?limit=10`);
+        if (!res.ok) return;
+        const history: Array<{
+          date: string;
+          dayType: string;
+          sets: Array<{ weightLbs: number | null; reps: number | null; isWarmup: boolean }>;
+        }> = await res.json();
+        const prior = history.find((h) => h.date !== currentDate);
+        if (!prior) return;
+        const workingSets = prior.sets.filter((s) => !s.isWarmup);
+        if (workingSets.length === 0) return;
+        const top = [...workingSets].sort((a, b) => {
+          const wa = a.weightLbs ?? -1;
+          const wb = b.weightLbs ?? -1;
+          if (wb !== wa) return wb - wa;
+          return (b.reps ?? 0) - (a.reps ?? 0);
+        })[0];
+        if (cancelled) return;
+        setLastSession({
+          date: prior.date,
+          dayType: prior.dayType,
+          topWeight: top.weightLbs,
+          topReps: top.reps,
+          setCount: workingSets.length,
+        });
+      } catch {
+        // silently fail — analysis panel just won't show last session
+      }
+    }
+    fetchLast();
+    return () => {
+      cancelled = true;
+    };
+  }, [exerciseId, currentDate]);
 
   function handleSetChange(index: number, data: Partial<SetData>) {
     const updated = sets.map((s, i) => (i === index ? { ...s, ...data } : s));
@@ -84,9 +142,23 @@ export default function ExerciseCard({
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
-          <span className="font-medium text-[var(--foreground)] truncate">
-            {exerciseName}
-          </span>
+          {onSwap ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSwap();
+              }}
+              className="font-medium text-[var(--foreground)] truncate text-left hover:text-[var(--teal)] transition-colors"
+              title="Tap to swap exercise"
+            >
+              {exerciseName}
+            </button>
+          ) : (
+            <span className="font-medium text-[var(--foreground)] truncate">
+              {exerciseName}
+            </span>
+          )}
           <span className="text-xs text-[var(--muted)] flex-shrink-0">
             {sets.length} {sets.length === 1 ? 'set' : 'sets'}
           </span>
@@ -116,6 +188,37 @@ export default function ExerciseCard({
       {/* Sets list */}
       {!collapsed && (
         <div className="px-4 pb-3">
+          {/* Analysis panel — reasoning + previous session reference */}
+          {(notes || lastSession) && (
+            <div className="mb-3 p-3 rounded-md bg-[var(--background)] border border-[var(--border)] space-y-1.5">
+              {lastSession && (
+                <div className="flex items-baseline gap-2 text-xs">
+                  <span className="text-[var(--muted)] uppercase tracking-wide text-[10px] font-semibold">
+                    Last
+                  </span>
+                  <span className="text-[var(--foreground)] tabular-nums">
+                    {lastSession.date.slice(5).replace('-', '/')}
+                    {' · '}
+                    {lastSession.topWeight != null ? lastSession.topWeight : 'BW'}
+                    {lastSession.topReps != null ? `×${lastSession.topReps}` : ''}
+                    {' '}
+                    <span className="text-[var(--muted)]">
+                      ({lastSession.setCount} {lastSession.setCount === 1 ? 'set' : 'sets'})
+                    </span>
+                  </span>
+                </div>
+              )}
+              {notes && (
+                <div className="flex items-baseline gap-2 text-xs">
+                  <span className="text-[var(--muted)] uppercase tracking-wide text-[10px] font-semibold flex-shrink-0">
+                    Plan
+                  </span>
+                  <span className="text-[var(--foreground)] leading-snug">{notes}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Column labels */}
           {sets.length > 0 && (
             <div className="flex items-center gap-2 text-[10px] text-[var(--muted)] uppercase tracking-wider pb-1 px-0">
@@ -136,6 +239,7 @@ export default function ExerciseCard({
               reps={set.reps}
               isPerSide={set.isPerSide}
               isWarmup={set.isWarmup}
+              notes={set.notes ?? null}
               equipment={equipment}
               onChange={(data) => handleSetChange(index, data)}
               onRemove={() => handleRemoveSet(index)}

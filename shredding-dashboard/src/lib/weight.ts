@@ -14,6 +14,13 @@ export function totalWeight(
   equipment: string | null | undefined,
 ): number | null {
   if (typeof weightLbs !== 'number' || !Number.isFinite(weightLbs)) return null;
-  const plates = isPerSide ? weightLbs * 2 : weightLbs;
+  // Per-side doubling only applies to implements with shared load across two sides
+  // (barbell, smith, plate-loaded machines). For dumbbells/cables, the weight field
+  // is already per-hand / absolute — never double it, even if legacy data has the flag set.
+  const respectPerSide =
+    equipment !== 'dumbbell' &&
+    equipment !== 'cable' &&
+    equipment !== 'bodyweight';
+  const plates = isPerSide && respectPerSide ? weightLbs * 2 : weightLbs;
   return plates + barWeight(equipment);
 }
