@@ -43,6 +43,7 @@ export async function GET(
         id: dailyLog.id,
         date: dailyLog.date,
         dayType: dailyLog.dayType,
+        notes: dailyLog.notes,
       },
       exercises: dailyLog.workoutExercises,
     });

@@ -249,6 +249,8 @@ async function suggestPlanFromHistory(
 export default function WorkoutPage() {
   const [date, setDate] = useState(todayString);
   const [dayType, setDayType] = useState<string | null>(null);
+  const [briefing, setBriefing] = useState<string | null>(null);
+  const [briefingOpen, setBriefingOpen] = useState(true);
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
@@ -287,6 +289,7 @@ export default function WorkoutPage() {
       if (res.status === 404) {
         // No workout for this date — start blank
         setDayType(null);
+        setBriefing(null);
         setExercises([]);
         lastSavedJsonRef.current = workoutSaveKey([]);
         hasLoadedRef.current = true;
@@ -297,6 +300,7 @@ export default function WorkoutPage() {
 
       const data = await res.json();
       setDayType(data.dailyLog?.dayType ?? null);
+      setBriefing(data.dailyLog?.notes ?? null);
 
       const loaded: WorkoutExercise[] = (data.exercises ?? []).map(
         (we: {
@@ -537,6 +541,32 @@ export default function WorkoutPage() {
       {loadError && (
         <div className="mb-4 text-sm text-[var(--amber)] bg-[var(--amber)]/10 border border-[var(--amber)]/30 rounded px-4 py-3">
           {loadError}
+        </div>
+      )}
+
+      {/* Session briefing — rendered when daily_log.notes is set */}
+      {briefing && briefing.trim().length > 0 && (
+        <div className="mb-6 border border-[var(--border)] rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setBriefingOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-[var(--surface)] hover:bg-[var(--surface-hover)] transition-colors"
+          >
+            <span className="text-sm font-semibold text-[var(--foreground)]">
+              Session Briefing
+            </span>
+            <span className="text-xs text-[var(--muted)]">
+              {briefingOpen ? '▼' : '▶'}
+            </span>
+          </button>
+          {briefingOpen && (
+            <div
+              className="px-4 py-4 text-xs font-mono leading-relaxed text-[var(--foreground)] whitespace-pre-wrap overflow-x-auto"
+              style={{ maxHeight: '600px', overflowY: 'auto' }}
+            >
+              {briefing}
+            </div>
+          )}
         </div>
       )}
 
