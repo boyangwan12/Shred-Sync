@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import MetricCard from '@/components/MetricCard';
 import StatsTargets from '@/components/StatsTargets';
 import GlycogenChart from '@/components/GlycogenChart';
+import MuscleGlycogenMap from '@/components/MuscleGlycogenMap';
 import WeightChart from '@/components/WeightChart';
 import TrajectoryInsights from '@/components/TrajectoryInsights';
 import AdherenceBar from '@/components/AdherenceBar';
@@ -31,6 +32,15 @@ interface DailyLog {
   liverGlycogenPct: number | null;
   muscleGlycogenPct: number | null;
   fatBurningPct: number | null;
+  perMuscle?: {
+    legs: number;
+    back: number;
+    chest: number;
+    shoulders: number;
+    arms: number;
+    core: number;
+  } | null;
+  workoutDataMissing?: boolean;
   dailyTotalCalBurned: number | null;
 }
 
@@ -182,6 +192,7 @@ export default function DashboardPage() {
       {logs.length > 0 && (
         <>
           <GlycogenChart logs={logs} />
+          <MuscleGlycogenMap logs={logs} />
           <WeightChart logs={logs} />
           <TrajectoryInsights />
           <AdherenceBar logs={logs} />
