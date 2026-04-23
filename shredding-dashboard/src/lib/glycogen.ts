@@ -23,7 +23,7 @@ import { DayType } from '@/constants/targets';
 // -----------------------------------------------------------------------------
 
 export const GLYCOGEN_MAX = { liver: 100, muscle: 400 } as const;
-export const MODEL_VERSION = 'glycogen-v1.0.1';
+export const MODEL_VERSION = 'glycogen-v1.0.2';
 
 // Table A — research-derived
 const LIVER_MAX = GLYCOGEN_MAX.liver;
@@ -31,7 +31,12 @@ const MUSCLE_MAX = GLYCOGEN_MAX.muscle;
 const OVERNIGHT_LIVER_DRAIN = 50; // Boden 1997: ~5g/hr × 10hr sleep
 const CARB_PARTITION_LIVER = 0.30; // Ferrannini 2001
 const CARB_PARTITION_MUSCLE_FED = 0.55; // Ferrannini 2001 rest-day
-const CARB_PARTITION_MUSCLE_POST_WORKOUT = 0.65; // Ferrannini 2001 + GLUT4
+const CARB_PARTITION_MUSCLE_POST_WORKOUT = 0.45; // Ferrannini 2001 + GLUT4 (reduced from 0.65 in v1.0.2 — 0.65 over-refills worked muscles same-day when only one group was trained)
+// Same-day recovery cap: post-workout resynthesis is gradual. Research (Jentjens
+// & Jeukendrup 2003, Burke 2017) shows ~50% recovery in first 4-6h with
+// adequate carbs, 80-90% over 24h. Per-workout glycogen dip should persist
+// into the next day so the chart shows the real training stress.
+const SAME_DAY_REFILL_CAP_FRAC = 0.5;
 
 // Muscle-group mass fractions (Janssen 2000, male, normalized to 6 groups)
 export const MUSCLE_GROUP_MASS: Record<MuscleGroup, number> = {
@@ -270,18 +275,35 @@ export function simulateGlycogen(
       : CARB_PARTITION_MUSCLE_FED;
     const totalMuscleCarbs = carbsEaten * musclePartition;
 
-    // Distribute across groups proportional to depletion (more-depleted groups
-    // absorb more, per GLUT4 translocation). If no depletion occurred, fall
-    // back to mass fractions so passive refill still hits every group.
+    // Distribute across groups. Worked groups get priority via GLUT4 but their
+    // same-day refill is capped at SAME_DAY_REFILL_CAP_FRAC of today's
+    // depletion — represents the fact that full glycogen resynthesis takes
+    // 24-48h, not hours. Any excess carbs are treated as going to oxidation
+    // or fat storage (not modeled here). Unworked groups on a training day
+    // still get a small mass-proportional passive refill.
     let totalDepletion = 0;
     for (const g of MUSCLE_GROUPS) totalDepletion += depletionByGroup[g];
 
     for (const g of MUSCLE_GROUPS) {
-      const share = totalDepletion > 0
-        ? depletionByGroup[g] / totalDepletion
-        : MUSCLE_GROUP_MASS[g];
-      const refillG = totalMuscleCarbs * share;
       const cap = maxGramsForGroup(g);
+      let refillG: number;
+
+      if (hasExercises && totalDepletion > 0) {
+        if (depletionByGroup[g] > 0) {
+          // Worked group: GLUT4-weighted share, capped at fraction of depletion
+          const proportionalShare = depletionByGroup[g] / totalDepletion;
+          const wantedRefill = totalMuscleCarbs * proportionalShare;
+          const depletionG = depletionByGroup[g] * cap;
+          refillG = Math.min(wantedRefill, depletionG * SAME_DAY_REFILL_CAP_FRAC);
+        } else {
+          // Unworked group on workout day: passive mass-proportional refill
+          refillG = totalMuscleCarbs * MUSCLE_GROUP_MASS[g] * 0.5;
+        }
+      } else {
+        // Rest day or no depletion: distribute by mass fraction (passive flow)
+        refillG = totalMuscleCarbs * MUSCLE_GROUP_MASS[g];
+      }
+
       muscleG[g] = Math.min(muscleG[g] + refillG, cap);
     }
 

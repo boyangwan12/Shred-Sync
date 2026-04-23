@@ -73,16 +73,17 @@ test('T3: Push day with 3 chest exercises (15 sets) — chest depletes 25-40%, o
   // Chest should have taken a substantial hit before refill redistributed
   // unfilled capacity. After 100g carbs * 0.65 muscle partition = 65g
   // distributed proportional to depletion (chest gets ~all of it).
-  // Untouched groups drift down slightly from basal turnover (v1.0.1):
-  // 30g/day × mass fraction. Legs (40% mass) = 12g / 160g cap = -7.5pp,
-  // back (20%) = -7.5pp. Starting 80% → ~72-73%.
+  // Untouched groups: basal turnover drain + passive refill from carbs.
+  // v1.0.2 logic on workout days: unworked groups receive
+  //   refill = musclePartition × mass × 0.5
+  // 100g × 0.45 × 0.40 × 0.5 = 9g refill for legs (128 - 12 + 9 = ~78%).
   assert.ok(
-    out.perMuscle.legs >= 68 && out.perMuscle.legs <= 76,
-    `legs should drift to ~72-73% after basal turnover, got ${out.perMuscle.legs}`,
+    out.perMuscle.legs >= 74 && out.perMuscle.legs <= 82,
+    `legs should settle ~78% (basal drain + partial refill), got ${out.perMuscle.legs}`,
   );
   assert.ok(
-    out.perMuscle.back >= 68 && out.perMuscle.back <= 76,
-    `back should drift to ~72-73% after basal turnover, got ${out.perMuscle.back}`,
+    out.perMuscle.back >= 74 && out.perMuscle.back <= 82,
+    `back should settle ~78% (basal drain + partial refill), got ${out.perMuscle.back}`,
   );
   assert.equal(out.workoutDataMissing, false);
 });
