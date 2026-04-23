@@ -19,5 +19,32 @@ export async function GET(request: NextRequest) {
     take: limit ? parseInt(limit) : undefined,
   });
 
-  return Response.json(logs);
+  // When food_plan_items exist for a day, they are the source of truth for macros.
+  // Overrides any stale values stored on the daily_logs row.
+  const logIds = logs.map((l) => l.id);
+  const foodSums = logIds.length
+    ? await prisma.foodPlanItem.groupBy({
+        by: ['dailyLogId'],
+        where: { dailyLogId: { in: logIds } },
+        _sum: { calories: true, proteinG: true, carbsG: true, fatG: true },
+      })
+    : [];
+  const sumsByLogId = new Map(foodSums.map((s) => [s.dailyLogId, s._sum]));
+
+  const round1 = (n: number | null | undefined) =>
+    n == null ? null : Math.round(n * 10) / 10;
+
+  const enriched = logs.map((log) => {
+    const s = sumsByLogId.get(log.id);
+    if (!s || s.calories == null) return log;
+    return {
+      ...log,
+      caloriesActual: s.calories,
+      proteinActual: round1(s.proteinG),
+      carbsActual: round1(s.carbsG),
+      fatActual: round1(s.fatG),
+    };
+  });
+
+  return Response.json(enriched);
 }

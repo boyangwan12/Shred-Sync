@@ -103,4 +103,22 @@ test.describe('API: data shape', () => {
       expect(body[0].date >= body[1].date).toBe(true);
     }
   });
+
+  // Regression: daily_logs.caloriesActual must reflect food_plan_items sums.
+  // Previously, calories_actual was a manual column that drifted from logged items.
+  test('logs API caloriesActual matches sum of food_plan_items for the day', async ({ request }) => {
+    const date = '2026-04-13';
+    const foodRes = await request.get(`/api/food/${date}`);
+    const food = await foodRes.json();
+    if (!food.items || food.items.length === 0) return;
+    const expectedCals = food.items.reduce(
+      (acc: number, it: { calories: number | null }) => acc + (it.calories ?? 0),
+      0
+    );
+
+    const logsRes = await request.get(`/api/logs?from=${date}&to=${date}`);
+    const logs = await logsRes.json();
+    expect(logs.length).toBe(1);
+    expect(logs[0].caloriesActual).toBe(expectedCals);
+  });
 });
