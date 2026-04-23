@@ -23,7 +23,7 @@ import { DayType } from '@/constants/targets';
 // -----------------------------------------------------------------------------
 
 export const GLYCOGEN_MAX = { liver: 100, muscle: 400 } as const;
-export const MODEL_VERSION = 'glycogen-v1.0.0';
+export const MODEL_VERSION = 'glycogen-v1.0.1';
 
 // Table A — research-derived
 const LIVER_MAX = GLYCOGEN_MAX.liver;
@@ -50,6 +50,17 @@ const CNS_LIVER_COST_PER_SET = 0.3; // grams — Jensen 2011 5-10% per session
 const BASE_FAT_OXIDATION = 0.25; // fraction; model assumption for cut
 const INSULIN_DAMPENING_THRESHOLD = 150; // g carbs for full dampening
 const INSULIN_DAMPENING_MAX = 0.4; // cap of 40% suppression (Randle 1963 / Spriet 2014, PMC4008806)
+
+// Basal muscle glycogen turnover (hotfix v1.0.1):
+// Without this, muscle groups that aren't trained on a given day stay at 100%
+// indefinitely, which pins the weighted whole-body muscle average at 100% and
+// produces a flat line on the chart. Ferrannini 2001 and Hargreaves & Spriet
+// 2020 document continuous basal glucose uptake by skeletal muscle for
+// metabolic maintenance, independent of training. Range in literature:
+// ~20-40g/day across total muscle mass at rest. We use 30g/day distributed by
+// muscle-group mass fractions — lets untouched groups drift down over multi-day
+// low-carb cycles while still refilling from fed-state carbs.
+const MUSCLE_BASAL_TURNOVER_G_PER_DAY = 30;
 
 /**
  * Predicted depletion by day type — used ONLY in `predictTomorrow` fallback
@@ -193,6 +204,14 @@ export function simulateGlycogen(
     // --- 1. Overnight liver drain (scales with fullness per Boden 1997) ---
     const drainG = Math.min(OVERNIGHT_LIVER_DRAIN * (liverG / LIVER_MAX), liverG);
     liverG = Math.max(0, liverG - drainG);
+
+    // --- 1b. Basal muscle turnover (Ferrannini 2001, Hargreaves 2020) ---
+    // Every muscle group consumes glucose for basal metabolism, proportional
+    // to its mass fraction. Prevents untouched groups from pinning at 100%.
+    for (const g of MUSCLE_GROUPS) {
+      const basalG = MUSCLE_BASAL_TURNOVER_G_PER_DAY * MUSCLE_GROUP_MASS[g];
+      muscleG[g] = Math.max(0, muscleG[g] - basalG);
+    }
 
     // --- 2. Determine carbs (with target fallback flag) ---
     const carbsFromTarget = day.carbsActual == null && day.carbsTarget != null;
