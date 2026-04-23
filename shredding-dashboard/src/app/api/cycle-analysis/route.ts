@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { buildCycleAnalysis, type CycleLog } from '@/lib/cycleAnalysis';
 import { barWeight } from '@/lib/weight';
+import { simulateGlycogen } from '@/lib/glycogen';
+import { fetchGlycogenInputs } from '@/lib/glycogen-data';
 import {
   buildCortisolVerdict,
   computeCortisolSignals,
@@ -39,6 +41,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Compute-on-read glycogen overlay — mirrors /api/logs so both routes
+    // agree on the same date. Without this the cycle-analysis page would
+    // render stale stored DB values while the dashboard renders
+    // simulateGlycogen output. See .omc/plans/glycogen-model.md step 4b.
+    const glycogenInputs = await fetchGlycogenInputs(fromStr, date);
+    const glycogenOutputs = simulateGlycogen(glycogenInputs);
+    const glycogenByDate = new Map(glycogenOutputs.map(g => [g.date, g]));
+
     const cycleLogs: CycleLog[] = logs.map(l => {
       let totalSets = 0;
       let volume = 0;
@@ -54,6 +64,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      const g = glycogenByDate.get(l.date);
       return {
         date: l.date,
         dayType: l.dayType,
@@ -69,14 +80,17 @@ export async function GET(request: NextRequest) {
         energyScore: l.energyScore,
         satietyScore: l.satietyScore,
         dailyTotalCalBurned: l.dailyTotalCalBurned,
-        liverGlycogenPct: l.liverGlycogenPct,
-        muscleGlycogenPct: l.muscleGlycogenPct,
-        fatBurningPct: l.fatBurningPct,
+        // Compute-on-read: prefer simulateGlycogen output, fall back to stored
+        // DB values if the simulator returns no data for this date.
+        liverGlycogenPct: g?.liverGlycogenPct ?? l.liverGlycogenPct,
+        muscleGlycogenPct: g?.muscleGlycogenPct ?? l.muscleGlycogenPct,
+        fatBurningPct: g?.fatBurningPct ?? l.fatBurningPct,
         workoutDurationMin: l.workoutDurationMin,
         workoutAvgHr: l.workoutAvgHr,
         workoutExerciseCount: l.workoutExercises.length,
         workoutTotalSets: totalSets,
         workoutVolumeLbs: Math.round(volume),
+        workoutDataMissing: g?.workoutDataMissing ?? false,
       };
     });
 

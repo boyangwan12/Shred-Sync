@@ -1,5 +1,5 @@
 import { DayType, CYCLE_ORDER, MACRO_TARGETS } from '@/constants/targets';
-import { estimateGlycogen } from './glycogen';
+import { estimateGlycogen, PREDICTED_DEPLETION_BY_DAY_TYPE } from './glycogen';
 
 interface DayLog {
   date: string;
@@ -53,7 +53,30 @@ export function predictTomorrow(logs: DayLog[]): Prediction {
     workoutAvgHr: nextDayType === 'rest' ? null : 115,
   };
 
-  const glycogen = estimateGlycogen(simulated, today);
+  const glycogenBase = estimateGlycogen(simulated, today);
+
+  // The estimateGlycogen wrapper can't model exercise depletion (it has no
+  // exercise data in its signature). For training-day predictions, apply a
+  // day-type-based fallback depletion so the forecast reflects the drop the
+  // user should expect from their typical session. Rest days pass through
+  // unchanged. See .omc/plans/glycogen-model.md "Wrapper Behavioral Changes".
+  const predictedDepletion = PREDICTED_DEPLETION_BY_DAY_TYPE[nextDayType] ?? 0;
+  const adjustedMuscle = Math.max(
+    0,
+    Math.round(glycogenBase.muscleGlycogenPct * (1 - predictedDepletion)),
+  );
+  // Recompute fat burning from the adjusted muscle + same carb intake so the
+  // inverse-glycogen → fat-oxidation relationship stays consistent.
+  const avgGlyc = (glycogenBase.liverGlycogenPct + adjustedMuscle) / 2;
+  let baseFat = 25 + (100 - avgGlyc) * 0.7;
+  if (nextDayType !== 'rest') baseFat += 8;
+  const insulinDampening = Math.min(targets.carbs / 150, 1.0) * 0.4;
+  const adjustedFat = Math.max(15, Math.min(85, Math.round(baseFat * (1 - insulinDampening))));
+  const glycogen = {
+    liverGlycogenPct: glycogenBase.liverGlycogenPct,
+    muscleGlycogenPct: adjustedMuscle,
+    fatBurningPct: adjustedFat,
+  };
 
   let weightDirection: 'up' | 'down' | 'stable' = 'stable';
   let weightReason = '';
@@ -112,6 +135,15 @@ export function predictTomorrow(logs: DayLog[]): Prediction {
   };
 }
 
+/**
+ * Interactive "what-if" simulator for the GlycogenSimulator UI component.
+ * This is intentionally a simpler single-point model (not time-series).
+ * The historical glycogen chart uses `simulateGlycogen()` from `glycogen.ts`.
+ * See .omc/plans/glycogen-model.md step 3d for rationale on keeping these
+ * separate — this function takes raw gram values (liver 0-100, muscle 0-400)
+ * and computes energy source breakdown, ketone production, gluconeogenesis,
+ * and muscle breakdown risk. Unifying would make the slider UI awkward.
+ */
 export function computeSimulatorState(liver: number, muscle: number, activity: 'rest' | 'moderate' | 'heavy') {
   let baseFat = 30;
   if (liver < 50) baseFat += ((50 - liver) / 50) * 20;

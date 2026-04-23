@@ -1,4 +1,5 @@
 import { MACRO_TARGETS, CYCLE_ORDER, type DayType } from '@/constants/targets';
+import { GLYCOGEN_MAX } from './glycogen';
 
 export type CycleGrade = 'A' | 'B' | 'C' | 'D' | 'incomplete';
 export type Tone = 'positive' | 'neutral' | 'warning' | 'critical';
@@ -26,6 +27,8 @@ export interface CycleLog {
   workoutExerciseCount: number;
   workoutTotalSets: number;
   workoutVolumeLbs: number;
+  /** True when dayType!='rest' but no exercises were logged (glycogen-v1). */
+  workoutDataMissing?: boolean;
 }
 
 export interface CycleDay {
@@ -42,6 +45,8 @@ export interface CycleDay {
   fatBurningPct: number | null;
   workout: string; // summary
   insight: string; // one-line
+  /** True when dayType!='rest' but no exercises were logged (glycogen-v1). */
+  workoutDataMissing?: boolean;
 }
 
 export interface GlycogenSeries {
@@ -87,7 +92,7 @@ export interface CycleAnalysis {
   weightBreakdown: WeightBreakdown;
 }
 
-const GLYCOGEN_MAX = { liver: 100, muscle: 400 }; // grams
+// GLYCOGEN_MAX is imported from './glycogen' — single source of truth.
 const WATER_PER_GLYCOGEN_G = 3; // each g glycogen binds 3g water (total 4g with itself)
 const GRAMS_PER_LB = 453.592;
 
@@ -170,6 +175,7 @@ function buildCycleDays(startDate: string | null, logs: Map<string, CycleLog>): 
       fatBurningPct: log?.fatBurningPct ?? null,
       workout: workoutSummary(log, dt),
       insight: dayInsight(dt, log),
+      workoutDataMissing: log?.workoutDataMissing ?? false,
     };
   });
 }
@@ -205,12 +211,21 @@ function computeGrade(
   }).length;
   const carbHitRate = `${carbHits}/${logged.length} days within 15% of carb target.`;
 
-  // V-shape formation: muscle glycogen should dip on pull then rebound on legs
+  // V-shape formation: muscle glycogen should dip on pull then rebound on legs.
+  // NOTE: the glycogen-v1 model produces smaller WHOLE-BODY swings than the
+  // per-muscle swings because untouched groups stay full and dilute the
+  // weighted average. Pull→legs legs-group swing is ~15-25pp while the
+  // whole-body swing is typically 3-8pp. The +15 threshold here is the
+  // weighted whole-body number and is intentionally loose; a future revision
+  // may switch to `perMuscle.legs` for a tighter, more physiologically
+  // meaningful check. See .omc/plans/glycogen-model.md step 3f.
   const pull = currentDays.find(d => d.dayType === 'pull');
   const legs = currentDays.find(d => d.dayType === 'legs');
   const rest = currentDays.find(d => d.dayType === 'rest');
   let vShape: string;
-  if (pull?.muscleGlycogenPct != null && legs?.muscleGlycogenPct != null) {
+  if (pull?.workoutDataMissing) {
+    vShape = 'Pull day workout not logged — V-shape cannot be evaluated.';
+  } else if (pull?.muscleGlycogenPct != null && legs?.muscleGlycogenPct != null) {
     if (legs.muscleGlycogenPct > pull.muscleGlycogenPct + 15) {
       vShape = `V-shape formed cleanly — muscle glycogen dropped to ${pull.muscleGlycogenPct}% on pull, rebounded to ${legs.muscleGlycogenPct}% on legs.`;
     } else {
@@ -346,7 +361,12 @@ function buildWeightBreakdown(
   lastRefeedDate = pastLegsDays[0]?.date ?? null;
 
   if (scaleWeight != null && todayLog?.muscleGlycogenPct != null && todayLog?.liverGlycogenPct != null) {
-    // Baseline = ~40% muscle, ~45% liver (typical depleted mid-cycle state)
+    // Conservative depleted floor for water weight estimation. See
+    // .omc/plans/glycogen-model.md step 3g. Represents the lowest expected
+    // state across an entire cut, not just one cycle. Over a 12-week cut
+    // with progressive caloric reduction, late-stage pull days could
+    // plausibly bottom at 40-45%. Revisit if real data consistently shows
+    // pull-day troughs above 55%.
     const baselineMuscle = 40;
     const baselineLiver = 45;
     const excessMuscleG = ((todayLog.muscleGlycogenPct - baselineMuscle) / 100) * GLYCOGEN_MAX.muscle;

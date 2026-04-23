@@ -31,6 +31,8 @@ interface DailyLog {
   muscleGlycogenPct: number | null;
   fatBurningPct: number | null;
   workoutAvgHr: number | null;
+  /** True when dayType!='rest' but no exercises were logged (glycogen-v1). */
+  workoutDataMissing?: boolean;
 }
 
 interface GlycogenChartProps {
@@ -54,14 +56,22 @@ export default function GlycogenChart({ logs }: GlycogenChartProps) {
     const day = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const dayLabel = DAY_LABELS[l.dayType] || l.dayType;
     const carbs = l.carbsActual ?? l.carbsTarget ?? 0;
-    const suffix = l.date >= tomorrow ? ' (tomorrow)' : '';
+    const suffix = l.date >= tomorrow
+      ? ' (tomorrow)'
+      : l.workoutDataMissing
+        ? ' (rest approx)'
+        : '';
     return `${day} ${dayLabel} ${Math.round(carbs)}g C${suffix}`;
   });
 
-  // Segment styling: dash lines going TO prediction points
+  // Segment styling: dash lines going TO prediction points OR going TO a day
+  // with missing workout data (rest-day approximation per glycogen-v1 model).
   const predictionSegment = {
-    borderDash: (ctx: { p1DataIndex: number }) =>
-      ctx.p1DataIndex >= predictionStartIdx ? [6, 4] : undefined,
+    borderDash: (ctx: { p1DataIndex: number }) => {
+      if (ctx.p1DataIndex >= predictionStartIdx) return [6, 4];
+      if (logs[ctx.p1DataIndex]?.workoutDataMissing) return [3, 3];
+      return undefined;
+    },
   };
 
   const data = {
@@ -191,6 +201,14 @@ export default function GlycogenChart({ logs }: GlycogenChartProps) {
             if (val == null) return '';
             if (label.includes('HR')) return `  ${label}: ${val} bpm`;
             return `  ${label}: ${val}%`;
+          },
+          afterBody: (items: { dataIndex: number }[]) => {
+            if (!items.length) return '';
+            const log = logs[items[0].dataIndex];
+            if (log?.workoutDataMissing) {
+              return '\nWorkout not logged — rest-day approximation used.';
+            }
+            return '';
           },
         },
       },

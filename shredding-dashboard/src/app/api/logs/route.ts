@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
+import { simulateGlycogen, MODEL_VERSION } from '@/lib/glycogen';
+import { fetchGlycogenInputs } from '@/lib/glycogen-data';
 
 export async function GET(request: NextRequest) {
   const from = request.nextUrl.searchParams.get('from');
@@ -46,5 +48,34 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  return Response.json(enriched);
+  // Compute-on-read glycogen overlay — runs `simulateGlycogen` over the full
+  // date range and overrides stored DB values for liver/muscle/fat fields.
+  // This keeps the dashboard chart and cycle-analysis route consistent and
+  // means stored DB values only matter for direct queries. See
+  // .omc/plans/glycogen-model.md step 4a.
+  const withGlycogen = enriched.length > 0
+    ? await (async () => {
+        const firstDate = enriched[0].date;
+        const lastDate = enriched[enriched.length - 1].date;
+        const glycogenInputs = await fetchGlycogenInputs(firstDate, lastDate);
+        const glycogenOutputs = simulateGlycogen(glycogenInputs);
+        const glycogenByDate = new Map(glycogenOutputs.map(g => [g.date, g]));
+        return enriched.map(log => {
+          const g = glycogenByDate.get(log.date);
+          if (!g) return log;
+          return {
+            ...log,
+            liverGlycogenPct: g.liverGlycogenPct,
+            muscleGlycogenPct: g.muscleGlycogenPct,
+            fatBurningPct: g.fatBurningPct,
+            perMuscle: g.perMuscle,
+            workoutDataMissing: g.workoutDataMissing,
+            carbsFromTarget: g.carbsFromTarget,
+            modelVersion: MODEL_VERSION,
+          };
+        });
+      })()
+    : enriched;
+
+  return Response.json(withGlycogen);
 }
