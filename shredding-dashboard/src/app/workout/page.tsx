@@ -20,6 +20,28 @@ interface WorkoutExercise {
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
+// Canonical key for the PUT payload. Two states produce the same key iff the
+// resulting server row would be identical. Used to suppress redundant saves —
+// including the one that fires on the first render after a fetch, which was
+// silently overwriting past workouts when the user navigated to view them.
+function workoutSaveKey(exercises: WorkoutExercise[]): string {
+  return JSON.stringify(
+    exercises.map((ex, i) => ({
+      exerciseId: ex.exerciseId,
+      sortOrder: i,
+      notes: ex.notes || null,
+      sets: ex.sets.map((s) => ({
+        setNumber: s.setNumber,
+        weightLbs: s.weightLbs === '' ? null : s.weightLbs,
+        reps: s.reps === '' ? null : s.reps,
+        isWarmup: s.isWarmup,
+        isPerSide: s.isPerSide,
+        notes: s.notes ?? null,
+      })),
+    })),
+  );
+}
+
 function todayString() {
   const d = new Date();
   const y = d.getFullYear();
@@ -238,6 +260,13 @@ export default function WorkoutPage() {
   const exercisesRef = useRef(exercises);
   exercisesRef.current = exercises;
 
+  // Last payload successfully synced with the server (from fetch or save). The
+  // save effect compares against this to skip no-op writes — specifically the
+  // redundant save that would otherwise fire on the first render after a date
+  // change and overwrite the just-loaded workout with whatever is in React
+  // state at that instant.
+  const lastSavedJsonRef = useRef<string>(workoutSaveKey([]));
+
   // Track current date in a ref so async handlers never capture a stale value
   const dateRef = useRef(date);
   dateRef.current = date;
@@ -259,6 +288,7 @@ export default function WorkoutPage() {
         // No workout for this date — start blank
         setDayType(null);
         setExercises([]);
+        lastSavedJsonRef.current = workoutSaveKey([]);
         hasLoadedRef.current = true;
         isInitialLoadRef.current = false;
         return;
@@ -299,6 +329,7 @@ export default function WorkoutPage() {
         })
       );
       setExercises(loaded);
+      lastSavedJsonRef.current = workoutSaveKey(loaded);
       hasLoadedRef.current = true;
       isInitialLoadRef.current = false;
     } catch {
@@ -336,22 +367,9 @@ export default function WorkoutPage() {
   // Auto-save with 1.5s debounce
   const saveWorkout = useCallback(async (dateStr: string, exs: WorkoutExercise[]) => {
     setSaveStatus('saving');
+    const key = workoutSaveKey(exs);
     try {
-      const payload = {
-        exercises: exs.map((ex, i) => ({
-          exerciseId: ex.exerciseId,
-          sortOrder: i,
-          notes: ex.notes || null,
-          sets: ex.sets.map((s) => ({
-            setNumber: s.setNumber,
-            weightLbs: s.weightLbs === '' ? null : s.weightLbs,
-            reps: s.reps === '' ? null : s.reps,
-            isWarmup: s.isWarmup,
-            isPerSide: s.isPerSide,
-            notes: s.notes ?? null,
-          })),
-        })),
-      };
+      const payload = { exercises: JSON.parse(key) };
 
       const res = await fetch(`/api/workout/${dateStr}`, {
         method: 'PUT',
@@ -360,15 +378,20 @@ export default function WorkoutPage() {
       });
 
       if (!res.ok) throw new Error('Save failed');
+      lastSavedJsonRef.current = key;
       setSaveStatus('saved');
     } catch {
       setSaveStatus('error');
     }
   }, []);
 
-  // Trigger debounced save when exercises change (but not on initial load)
+  // Trigger debounced save when exercises change. Skip if the current payload
+  // would be identical to what we last synced with the server — this kills the
+  // spurious "save on load" that used to wipe past workouts.
   useEffect(() => {
-    if (!hasLoadedRef.current || isInitialLoadRef.current) return;
+    if (!hasLoadedRef.current) return;
+    const currentKey = workoutSaveKey(exercisesRef.current);
+    if (currentKey === lastSavedJsonRef.current) return;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
