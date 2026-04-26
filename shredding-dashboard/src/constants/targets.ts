@@ -9,16 +9,16 @@ export interface MacroTargets {
   tdee: number;
 }
 
-// Recalibrated 2026-04-25 from 18 days of cutting data. The Notion plan's
-// formula-derived TDEE (Mifflin-St Jeor + activity multiplier) was ~7% high.
-// Real cycle-averaged maintenance ≈ 2,234 kcal/day after adaptive thermogenesis
-// and NEAT suppression. Fat targets reduced because the original push/pull 121g
-// was hard to hit naturally. See memory: project_calibrated_targets.md.
+// Tightened 2026-04-26: cut 100 kcal/day (mostly fat) to close the ~1.7 lb
+// gap behind plan. After 19 days at the previous targets the effective deficit
+// (~290 kcal/day) only delivered 0.33 lb/wk of loss vs the 0.81 lb/wk plan.
+// Pulling fat down by ~12g per day shifts to a ~390 kcal/day deficit ≈ 0.78 lb/wk.
+// See memory: project_calibrated_targets.md.
 export const MACRO_TARGETS: Record<DayType, MacroTargets> = {
-  rest:  { calories: 1500, protein: 153, carbs: 75,  fat: 65,  tdee: 1860 },
-  push:  { calories: 1900, protein: 153, carbs: 100, fat: 100, tdee: 2320 },
-  pull:  { calories: 1900, protein: 153, carbs: 100, fat: 100, tdee: 2355 },
-  legs:  { calories: 2100, protein: 153, carbs: 250, fat: 50,  tdee: 2445 },
+  rest:  { calories: 1400, protein: 153, carbs: 75,  fat: 55, tdee: 1860 },
+  push:  { calories: 1800, protein: 153, carbs: 100, fat: 88, tdee: 2320 },
+  pull:  { calories: 1800, protein: 153, carbs: 100, fat: 88, tdee: 2355 },
+  legs:  { calories: 2000, protein: 153, carbs: 250, fat: 43, tdee: 2445 },
 };
 
 export const DAY_CARB_TYPE: Record<DayType, CarbType> = {
