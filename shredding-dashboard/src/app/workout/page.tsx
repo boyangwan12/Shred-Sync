@@ -256,6 +256,7 @@ export default function WorkoutPage() {
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [loadError, setLoadError] = useState('');
+  const [isLoadingWorkout, setIsLoadingWorkout] = useState(true);
   const [workoutDays, setWorkoutDays] = useState<Array<{ date: string; dayType: string }>>([]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -275,30 +276,34 @@ export default function WorkoutPage() {
 
   // Abort in-flight suggestion fetches when date changes or component unmounts
   const suggestAbortRef = useRef<AbortController | null>(null);
+  // Abort in-flight workout GETs when the user clicks another date before the
+  // previous one resolved — without this, fast navigation can let a stale
+  // response overwrite the active date's just-loaded state.
+  const workoutFetchAbortRef = useRef<AbortController | null>(null);
 
   // Track whether we've loaded initial data (to avoid saving on mount)
   const hasLoadedRef = useRef(false);
   const isInitialLoadRef = useRef(true);
 
   // Fetch workout on date change
-  const fetchWorkout = useCallback(async (dateStr: string) => {
+  const fetchWorkout = useCallback(async (dateStr: string, signal: AbortSignal) => {
     isInitialLoadRef.current = true;
     setLoadError('');
     try {
-      const res = await fetch(`/api/workout/${dateStr}`);
+      const res = await fetch(`/api/workout/${dateStr}`, { signal });
+      if (signal.aborted) return;
       if (res.status === 404) {
-        // No workout for this date — start blank
-        setDayType(null);
-        setBriefing(null);
-        setExercises([]);
+        // No workout for this date — already cleared by the date-change effect.
         lastSavedJsonRef.current = workoutSaveKey([]);
         hasLoadedRef.current = true;
         isInitialLoadRef.current = false;
+        setIsLoadingWorkout(false);
         return;
       }
       if (!res.ok) throw new Error('Failed to load workout');
 
       const data = await res.json();
+      if (signal.aborted) return;
       setDayType(data.dailyLog?.dayType ?? null);
       setBriefing(data.dailyLog?.notes ?? null);
 
@@ -336,10 +341,14 @@ export default function WorkoutPage() {
       lastSavedJsonRef.current = workoutSaveKey(loaded);
       hasLoadedRef.current = true;
       isInitialLoadRef.current = false;
-    } catch {
+      setIsLoadingWorkout(false);
+    } catch (err) {
+      if (signal.aborted) return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       setLoadError('Could not load workout data.');
       hasLoadedRef.current = true;
       isInitialLoadRef.current = false;
+      setIsLoadingWorkout(false);
     }
   }, []);
 
@@ -347,9 +356,23 @@ export default function WorkoutPage() {
     hasLoadedRef.current = false;
     // Cancel any pending suggestion fetch so it doesn't apply to the new date
     suggestAbortRef.current?.abort();
+    // Cancel any in-flight workout GET targeted at the previous date
+    workoutFetchAbortRef.current?.abort();
     // Cancel any pending auto-save targeted at the old date
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    fetchWorkout(date);
+
+    // Clear stale data immediately so the previous date's workout doesn't
+    // linger on screen while the new fetch is in flight. Without this, a
+    // 1-2 second Turso round-trip looks like "the click did nothing".
+    setExercises([]);
+    setBriefing(null);
+    setDayType(null);
+    setLoadError('');
+    setIsLoadingWorkout(true);
+
+    const controller = new AbortController();
+    workoutFetchAbortRef.current = controller;
+    fetchWorkout(date, controller.signal);
   }, [date, fetchWorkout]);
 
   // Fetch workout days for calendar
@@ -570,26 +593,48 @@ export default function WorkoutPage() {
         </div>
       )}
 
+      {/* Loading state — shown while a workout fetch is in flight after a date change */}
+      {isLoadingWorkout && (
+        <div className="text-center py-16">
+          <svg
+            className="animate-spin h-8 w-8 mx-auto text-[var(--teal)]"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
+          </svg>
+          <p className="mt-3 text-sm text-[var(--muted)]">Loading {date}...</p>
+        </div>
+      )}
+
       {/* Exercise cards */}
-      <div className="space-y-4">
-        {exercises.map((ex, index) => (
-          <ExerciseCard
-            key={`${ex.exerciseId}-${index}`}
-            exerciseId={ex.exerciseId}
-            exerciseName={ex.exerciseName}
-            equipment={ex.equipment}
-            notes={ex.notes}
-            sets={ex.sets}
-            currentDate={date}
-            onUpdate={(sets) => handleUpdateExerciseSets(index, sets)}
-            onRemove={() => handleRemoveExercise(index)}
-            onSwap={() => handleSwapExercise(index)}
-          />
-        ))}
-      </div>
+      {!isLoadingWorkout && (
+        <div className="space-y-4">
+          {exercises.map((ex, index) => (
+            <ExerciseCard
+              key={`${ex.exerciseId}-${index}`}
+              exerciseId={ex.exerciseId}
+              exerciseName={ex.exerciseName}
+              equipment={ex.equipment}
+              notes={ex.notes}
+              sets={ex.sets}
+              currentDate={date}
+              onUpdate={(sets) => handleUpdateExerciseSets(index, sets)}
+              onRemove={() => handleRemoveExercise(index)}
+              onSwap={() => handleSwapExercise(index)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Empty state */}
-      {exercises.length === 0 && !loadError && (
+      {!isLoadingWorkout && exercises.length === 0 && !loadError && (
         <div className="text-center py-16 text-[var(--muted)]">
           <svg
             className="w-12 h-12 mx-auto mb-3 opacity-40"
@@ -610,14 +655,16 @@ export default function WorkoutPage() {
       )}
 
       {/* Add exercise button */}
-      <button
-        type="button"
-        onClick={() => setPickerOpen(true)}
-        className="w-full mt-6 py-4 rounded-lg bg-[var(--teal)] text-white font-semibold text-base transition-opacity hover:opacity-90 active:opacity-80"
-        style={{ minHeight: '52px' }}
-      >
-        + Add Exercise
-      </button>
+      {!isLoadingWorkout && (
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="w-full mt-6 py-4 rounded-lg bg-[var(--teal)] text-white font-semibold text-base transition-opacity hover:opacity-90 active:opacity-80"
+          style={{ minHeight: '52px' }}
+        >
+          + Add Exercise
+        </button>
+      )}
 
       {/* Progressive Overload section */}
       <details className="group mt-8">
