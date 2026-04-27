@@ -48,8 +48,8 @@ The protocol must:
 | 12:30 PM | Lunch (P/F) | Auto-log via prior plan or quick prompt | Phone |
 | 4:00 PM | Pre-workout carbs (~30 g) | Push: pre-workout adjustment if HRV/energy off-baseline | Phone |
 | 5:00 PM | Workout | Workout page open | Dashboard (Phone or Macbook) |
-| 6:30 PM | Dinner (refuel, day-type macros) | Auto-log or prompt | Phone |
-| 7:00 PM | **Last food (hard cutoff)** | — | — |
+| 6:30 PM | Workout ends, drive home + heat food | — | — |
+| 7:00 PM | **Dinner (post-workout + dinner combined, single meal)** | Auto-log or prompt; finish by 7:30 PM | Phone |
 | 9:00 PM | Tomorrow food planning | Push: "what ingredients tomorrow? I'll plan grams" | Phone |
 | 9:30 PM | Tomorrow predictions produced | Claude generates: weight forecast, HRV forecast, training plan | Server (auto) |
 | 11:00 PM | Sleep | — | — |
@@ -223,9 +223,30 @@ The protocol must:
 
 User logs sets/reps directly on the workout page (existing UX, already works). Claude does NOT need to be in the loop during the workout itself.
 
-### 6:30 PM — Dinner logging (Phone → 30 sec)
+### 7:00 PM — Dinner = post-workout refuel (single meal)
 
-Same pattern as lunch.
+The user's logistics: workout ends 6:30 PM → 20 min drive home → heat food → start eating ~7:00 PM. This single meal is **both** the post-workout refuel AND dinner — there is no separate post-workout snack.
+
+**Timing math:**
+- Workout ends 6:30 PM → eating starts 7:00 PM = 30-min post-workout delay. Still well within the 60-120 min GLUT4 elevation window. Glycogen refill is still preferential.
+- Eating ends ~7:30 PM → 3.5 hours before 11 PM sleep. Acceptable for clean sleep.
+- Hard cutoff: stop eating by 7:45 PM. Past that, sleep quality drops.
+
+**Macro composition:** this meal carries the bulk of the day's carbs (because the rest of the day was P/F-dominant) and a full dinner protein portion + remaining fat budget.
+
+For a push/pull day (1800 kcal target, 100g carbs, 88g fat, 153g protein):
+- Breakfast already used: ~25g protein, ~20g fat, 0 carbs
+- Lunch already used: ~50g protein, ~35g fat, 0 carbs
+- Pre-workout used: ~30g carbs (sweet potato)
+- **Dinner remaining target: ~78g protein, ~33g fat, ~70g carbs**
+
+For a legs day (2000 kcal, 250g carbs, 43g fat, 153g protein):
+- Breakfast: ~25g protein, ~10g fat, 0 carbs
+- Lunch: ~50g protein, ~15g fat, ~30g carbs
+- Pre-workout: ~30g carbs
+- **Dinner remaining target: ~78g protein, ~18g fat, ~190g carbs** (this is the big refeed-style meal)
+
+**Claude action:** when user logs the meal (or photos it), confirm against the day's remaining macros, flag if anything is significantly off.
 
 ### 9:00 PM — Tomorrow planning (Phone → 5 min)
 
