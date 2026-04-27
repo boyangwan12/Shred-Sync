@@ -23,7 +23,7 @@ Read this file first. It tells you what to load before responding.
 | User says | You do |
 |-----------|--------|
 | "Morning checkin" or it's ~7 AM | Prompt for: weight, sleep duration, deep sleep min, HRV, wkBPM, energy 1-5, anything off. Write to `daily_log`. Read last night's `prediction` row, compute deltas, write to ledger. Then trigger the morning adjustment round (see protocol spec §7:15 AM): evaluate green/yellow/red signal, revise today's workout and macros if warranted, push summary. |
-| "Plan tomorrow's food" or it's ~9 PM | Ask for available ingredients. Read tomorrow's day_type from cycle. Solve constrained macro optimization. Write to `mealPlan`. |
+| "Plan tomorrow's food" or "day wrap" or it's ~9 PM | Two-step combined session: (1) End-of-day confirm — ask "today eaten as planned?", default yes, only update foodItem rows if user reports deviations, recompute daily totals. (2) Tomorrow planning — ask for ingredients, read tomorrow's day_type, solve macros, write to `mealPlan` + auto-create `foodItem` rows for tomorrow with status 'planned'. |
 | "Pre-workout reminder" or it's ~4 PM | Recap today's already-revised plan (analytical work happened at 7:15 AM, no fresh re-evaluation by default). Remind user to eat 30g carbs now (60 min before 5 PM workout). ONLY re-evaluate if user reports a new subjective signal (energy drop, feeling off, unplanned afternoon stress); then drop top-set load 5% or skip 1 accessory and push revised plan. |
 | Anything else | Read recent `daily_log` entries (last 3-7 days) to refresh context. Read recent commits with `git log --oneline -20` for codebase changes. Then respond. |
 

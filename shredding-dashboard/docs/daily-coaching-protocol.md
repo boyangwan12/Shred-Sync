@@ -45,11 +45,11 @@ The protocol must:
 | 7:15 AM | Morning adjustment round | Auto: Claude reads actuals vs last night's forecast, revises today's plan if signal warrants, pushes summary | Phone (push) |
 | 7:30 AM | Breakfast (P/F, no carbs) | Auto-log via prior plan or quick prompt | Phone |
 | 10:30 AM | Coffee #1 (with food) | — | — |
-| 12:30 PM | Lunch (P/F) | Auto-log via prior plan or quick prompt | Phone |
+| 12:30 PM | Lunch (P/F) | Eat planned meal silently — no touchpoint | — |
 | 4:00 PM | Pre-workout reminder + carbs | Push: recap today's plan (already revised at 7:15 AM), reminder to eat 30g carbs, optional subjective energy check | Phone |
 | 5:00 PM | Workout | Workout page open | Dashboard (Phone or Macbook) |
 | 6:30 PM | Workout ends, drive home + heat food | — | — |
-| 7:00 PM | **Dinner (post-workout + dinner combined, single meal)** | Auto-log or prompt; finish by 7:30 PM | Phone |
+| 7:00 PM | **Dinner (post-workout + dinner combined, single meal)** | Eat planned meal silently; finish by 7:30 PM | — |
 | 9:00 PM | Tomorrow food planning | Push: "what ingredients tomorrow? I'll plan grams" | Phone |
 | 9:30 PM | Tomorrow predictions produced | Claude generates: weight forecast, HRV forecast, training plan | Server (auto) |
 | 11:00 PM | Sleep | — | — |
@@ -202,9 +202,11 @@ The protocol must:
 - Updated macro targets (if changed)
 - Prediction-vs-actual delta written to `prediction` ledger (feeds tomorrow's forecast model — over time we learn whether the model systematically under- or over-predicts in different regimes)
 
-### 12:30 PM — Lunch logging (Phone → 30 sec)
+### 12:30 PM — Lunch (no Claude touchpoint)
 
-**Default:** today's lunch was planned last night, just confirm-as-eaten. If deviation, prompt user for actual ingredients + grams; Claude solves the macro math.
+You eat the meal that was planned at 9 PM yesterday. No push notification, no logging session, no prompt. The `foodItem` rows for today's lunch were auto-created from `mealPlan` last night with status "planned" — they get treated as actual intake unless you report a deviation.
+
+**If you eat something different than planned:** open the chat anytime ("ate 200g rice instead of 150g, no greens") and Claude updates the specific `foodItem` rows. Otherwise the planned meal is the logged meal.
 
 ### 4:00 PM — Pre-workout reminder + carbs (Phone push → 30 sec)
 
@@ -240,6 +242,8 @@ The user's logistics: workout ends 6:30 PM → 20 min drive home → heat food �
 - Eating ends ~7:30 PM → 3.5 hours before 11 PM sleep. Acceptable for clean sleep.
 - Hard cutoff: stop eating by 7:45 PM. Past that, sleep quality drops.
 
+**No Claude touchpoint at the eating moment.** You eat the planned meal silently. If it deviates from plan, you'll report it during the 9:00 PM end-of-day confirm.
+
 **Macro composition:** this meal carries the bulk of the day's carbs (because the rest of the day was P/F-dominant) and a full dinner protein portion + remaining fat budget.
 
 For a push/pull day (1800 kcal target, 100g carbs, 88g fat, 153g protein):
@@ -254,19 +258,27 @@ For a legs day (2000 kcal, 250g carbs, 43g fat, 153g protein):
 - Pre-workout: ~30g carbs
 - **Dinner remaining target: ~78g protein, ~18g fat, ~190g carbs** (this is the big refeed-style meal)
 
-**Claude action:** when user logs the meal (or photos it), confirm against the day's remaining macros, flag if anything is significantly off.
+**End-of-day confirm flow:** at 9:00 PM, the tomorrow-planning session also asks "Today eaten as planned?" — if yes, the day's `foodItem` rows stay as auto-copies of `mealPlan`. If you report a deviation now, specific rows get updated.
 
-### 9:00 PM — Tomorrow planning (Phone → 5 min)
+### 9:00 PM — End-of-day food confirm + tomorrow planning (Phone → 5 min)
 
-**Push notification:** "Tomorrow planning. What ingredients do you have? I'll plan grams."
+**Push notification:** "Day wrap. Today eaten as planned? + tomorrow's ingredients?"
 
-**User input:** list of available proteins/carbs/veggies/fats.
+This is the **only food touchpoint of the day**. Everything else (breakfast, lunch, pre-workout snack, dinner) was planned last night and the user eats it silently. This 9 PM session both closes today's books and opens tomorrow's plan.
 
-**Claude action:**
-1. Read tomorrow's day_type (rest/push/pull/legs) from cycle
-2. Solve constrained-optimization: hit calories/P/C/F targets given available ingredients
-3. Write planned meals to Turso (new table: `mealPlan` for tomorrow_date)
-4. Display: per-meal grams + macros + timing
+**Step 1 — End-of-day confirm (~30 sec):**
+1. Default: "today's foodItem rows stay as planned" (you eat what was planned)
+2. If you report deviations now ("ate 200g rice instead of 150g, skipped the greens, added 1 boiled egg"), Claude updates the specific `foodItem` rows for today
+3. Claude recomputes today's actual macros and writes the day's totals to `daily_log`
+
+**Step 2 — Tomorrow planning (~3-4 min):**
+1. You list available ingredients (proteins, carbs, veggies, fats)
+2. Claude reads tomorrow's day_type (rest/push/pull/legs) from the cycle
+3. Solves constrained-optimization: hit calories/P/C/F targets given available ingredients + locked schedule
+4. Writes planned meals to `mealPlan` AND auto-creates corresponding `foodItem` rows for tomorrow with status "planned"
+5. Displays: per-meal grams + macros + timing
+
+**Why this combined flow:** food deviations are rare (~1-2 per week). Most days the end-of-day confirm is just "yes, ate as planned" — adds ~5 sec to the planning session. Combining keeps both food touchpoints in one phone session and reduces total daily notifications from 5 to 4.
 
 ### 9:30 PM — Auto-prediction (Server cron, no user input)
 
