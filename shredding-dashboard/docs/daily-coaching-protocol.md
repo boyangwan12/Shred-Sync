@@ -46,7 +46,7 @@ The protocol must:
 | 7:30 AM | Breakfast (P/F, no carbs) | Auto-log via prior plan or quick prompt | Phone |
 | 10:30 AM | Coffee #1 (with food) | — | — |
 | 12:30 PM | Lunch (P/F) | Auto-log via prior plan or quick prompt | Phone |
-| 4:00 PM | Pre-workout carbs (~30 g) | Push: pre-workout adjustment if HRV/energy off-baseline | Phone |
+| 4:00 PM | Pre-workout reminder + carbs | Push: recap today's plan (already revised at 7:15 AM), reminder to eat 30g carbs, optional subjective energy check | Phone |
 | 5:00 PM | Workout | Workout page open | Dashboard (Phone or Macbook) |
 | 6:30 PM | Workout ends, drive home + heat food | — | — |
 | 7:00 PM | **Dinner (post-workout + dinner combined, single meal)** | Auto-log or prompt; finish by 7:30 PM | Phone |
@@ -206,18 +206,26 @@ The protocol must:
 
 **Default:** today's lunch was planned last night, just confirm-as-eaten. If deviation, prompt user for actual ingredients + grams; Claude solves the macro math.
 
-### 4:00 PM — Pre-workout adjustment + carbs (Phone push → 90 sec)
+### 4:00 PM — Pre-workout reminder + carbs (Phone push → 30 sec)
 
-**Push notification:** "Pre-workout: {today's plan summary}. Tap to adjust if needed. Eat 30g carbs now."
+**Push notification:** "Pre-workout: {today's revised plan from 7:15 AM, 1-line summary}. Eat 30g carbs now. Energy 1-5? Tap if anything's off."
 
-**Claude action (auto-generated at 3:30 PM by cron):**
-1. Read morning's HRV, energy, sleep (if 7:15 AM adjustment already revised the plan, start from the revised state)
-2. Read planned workout from `workoutExercise` for today
-3. If HRV <70 OR energy ≤2 OR cumulative load high → propose deload (reduce top set weight by 5-10%, drop one accessory)
-4. If HRV >120 AND energy ≥4 AND fueled → green-light next progression
-5. Push the adjustment as a notification; user confirms or overrides
+**Why this is lightweight (not a re-adjustment):** The analytical work using HRV, sleep, weight, and energy already happened at 7:15 AM. By 4:00 PM no new *objective* data has come in (HRV is measured at wake only, not mid-day). The 4:00 PM touchpoint exists primarily to:
 
-**Carb timing:** eat the 30g pre-workout carbs (sweet potato, banana, or rice) at 4:00 PM exactly so blood glucose peaks during heavy compound sets at ~5:00-5:30 PM. 60-min lead time is the sweet spot for low-GI carb sources.
+1. Remind you to eat the carbs at the right time (60 min before workout)
+2. Recap today's revised plan so you know what's queued without opening the dashboard
+3. Capture *subjective* state change if energy crashed during the day (afternoon slump, food crash, work stress, unplanned cardio)
+
+**Default behavior (no user input):** server cron pushes the summary, you eat the sweet potato, lift at 5 PM. Done in 30 sec total.
+
+**Conditional re-evaluation:** if you report energy ≤2 or flag "feeling off" in response to the push, Claude re-evaluates using the new subjective signal:
+- Drop top-set load 5%
+- Skip 1 accessory
+- Push revised plan back
+
+**Cron action at 3:30 PM:** read today's already-revised workout (from 7:15 AM round), format the recap, schedule the 4:00 PM push. **No analytical work** — that already happened in the morning.
+
+**Carb timing reasoning:** eat the 30g sweet potato (or other low-GI carb) at 4:00 PM exactly so blood glucose peaks during heavy compound sets at ~5:00-5:30 PM. 60-min lead time is the sweet spot for low-GI carb sources — see the digestion timeline analysis in conversation history.
 
 ### 5:00 PM — Workout (Dashboard — phone or laptop)
 
