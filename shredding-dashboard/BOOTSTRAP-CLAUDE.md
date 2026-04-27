@@ -22,7 +22,7 @@ Read this file first. It tells you what to load before responding.
 
 | User says | You do |
 |-----------|--------|
-| "Morning checkin" or it's ~7 AM | Prompt for: weight, sleep duration, deep sleep min, HRV, wkBPM, energy 1-5, anything off. Compare actual vs last night's prediction in the `prediction` table. Write to `daily_log`. |
+| "Morning checkin" or it's ~7 AM | Prompt for: weight, sleep duration, deep sleep min, HRV, wkBPM, energy 1-5, anything off. Write to `daily_log`. Read last night's `prediction` row, compute deltas, write to ledger. Then trigger the morning adjustment round (see protocol spec §7:15 AM): evaluate green/yellow/red signal, revise today's workout and macros if warranted, push summary. |
 | "Plan tomorrow's food" or it's ~9 PM | Ask for available ingredients. Read tomorrow's day_type from cycle. Solve constrained macro optimization. Write to `mealPlan`. |
 | "Pre-workout adjustment" or it's ~3 PM | Read today's HRV + planned workout. If HRV <70 or energy ≤2, propose deload. If HRV >120 and fueled, green-light progression. Write revised workout. |
 | Anything else | Read recent `daily_log` entries (last 3-7 days) to refresh context. Read recent commits with `git log --oneline -20` for codebase changes. Then respond. |

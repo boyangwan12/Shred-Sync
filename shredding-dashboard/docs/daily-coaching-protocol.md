@@ -41,7 +41,8 @@ The protocol must:
 
 | Time | Event | Touchpoint | Surface |
 |------|-------|------------|---------|
-| 7:00 AM | Wake | Push: log weight + HRV + sleep + energy | Phone |
+| 7:00 AM | Wake + morning checkin | Push: log weight + HRV + sleep + energy | Phone |
+| 7:15 AM | Morning adjustment round | Auto: Claude reads actuals vs last night's forecast, revises today's plan if signal warrants, pushes summary | Phone (push) |
 | 7:30 AM | Breakfast (P/F, no carbs) | Auto-log via prior plan or quick prompt | Phone |
 | 10:30 AM | Coffee #1 (with food) | — | — |
 | 12:30 PM | Lunch (P/F) | Auto-log via prior plan or quick prompt | Phone |
@@ -166,9 +167,40 @@ The protocol must:
 
 **Claude action:**
 1. Write to Turso `daily_log` for today
-2. Compare actual vs last night's prediction → log accuracy delta
-3. If anything is off-baseline (HRV crash, weight spike, sleep <5h), flag for evening adjustment
-4. Confirm receipt with one-line read of state
+2. Read last night's `prediction` row for today, compute deltas (weight, HRV, sleep)
+3. Write predicted-vs-actual to the prediction ledger for accuracy tracking
+4. Confirm receipt with one-line read of state and trigger the 7:15 AM adjustment round
+
+### 7:15 AM — Morning Adjustment Round (auto, no user input)
+
+**Trigger:** Fires automatically once morning checkin data is written. Conceptually a "second planning round" that uses real morning actuals instead of last night's projections.
+
+**Why this exists:** Last night's plan was made with last night's data. By morning, the body has produced new signal — HRV, weight after fluid balance settled, deep sleep architecture, subjective energy. Ignoring that signal until 3:30 PM pre-workout adjustment wastes 8 hours where macros, hydration strategy, and workout intensity could already be tuned.
+
+**Claude action:**
+1. Read this morning's actuals (weight, HRV, sleep, energy) and yesterday-evening's `prediction` row for today
+2. Read today's planned workout (`workoutExercise` rows) and meal plan (`mealPlan` rows)
+3. Evaluate signal:
+   - **Green** (HRV ≥120 AND sleep ≥7h AND energy ≥4): planned progression confirmed. If a heavy lift was deferred from last session, promote it to today.
+   - **Yellow** (HRV 70-119 OR mixed signals): keep planned weights, hold off on rep/weight progressions. Match-only philosophy.
+   - **Red** (HRV <70 OR sleep <5h OR energy ≤2 OR cumulative load high): cut top set load 5-10%, drop one accessory exercise, treat session as recovery work.
+4. Apply adjustments to `workoutExercise` rows if change is warranted (preserve original plan in a `notes` field for audit)
+5. Adjust today's macro targets if weight is significantly off-forecast:
+   - Actual >1 lb above forecast → trim 50-100 kcal from today's fat (water-bounce day, no need to overeat)
+   - Actual >1 lb below forecast on a non-refeed day → maintain (loss is real)
+   - Actual matches forecast within ±0.5 lb → no change
+6. Push summary to phone:
+   ```
+   Morning data: 151.9 (-0.1 vs forecast), HRV 152 (+22),
+   sleep 6.8h (-0.2). Signal: GREEN. Today: squat plan
+   confirmed, 一边100×4 PR target stays. No macro change.
+   Tone: trust the plan, execute clean.
+   ```
+
+**Outputs to log:**
+- Updated workout (if changed)
+- Updated macro targets (if changed)
+- Prediction-vs-actual delta written to `prediction` ledger (feeds tomorrow's forecast model — over time we learn whether the model systematically under- or over-predicts in different regimes)
 
 ### 12:30 PM — Lunch logging (Phone → 30 sec)
 

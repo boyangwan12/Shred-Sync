@@ -127,7 +127,8 @@ Both surfaces talk to the **same** Claude session running on the server. There i
 | Morning weight log | 7 AM push | Phone → Claude (server) → Turso `daily_log` → Dashboard |
 | Food photo log | User-initiated | Phone (image) → Claude (server) → macros computed → Turso `foodItem` → Dashboard |
 | Workout sets/reps | During workout | Phone/Macbook → Dashboard `/workout` page → Turso `workoutSet` directly (no Claude in the loop) |
-| Pre-workout adjustment | 3:30 PM cron | Server cron → Claude reads HRV+sleep+plan → produces revised plan → push to phone |
+| Morning adjustment | ~7:15 AM (after checkin) | Claude reads actuals vs last night's prediction → green/yellow/red signal → revises workout + macros if signal warrants → push summary to phone |
+| Pre-workout adjustment | 3:30 PM cron | Server cron → Claude reads HRV+sleep+plan (potentially already revised at 7:15 AM) → tactical pre-workout tweaks → push to phone |
 | Tomorrow food planning | 9 PM push | Phone (ingredients) → Claude solves macros → Turso `mealPlan` → Dashboard |
 | Tomorrow prediction | 9:30 PM cron | Server cron → Claude analyzes 7-day trend → writes to Turso `prediction` → push summary to phone |
 | Briefings | Claude → DB | Server-side Claude writes `daily_log.notes` → Dashboard renders it as Session Briefing on `/workout` page |
