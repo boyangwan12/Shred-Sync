@@ -130,7 +130,7 @@ Both surfaces talk to the **same** Claude session running on the server. There i
 | Morning adjustment | ~7:15 AM (after checkin) | Claude reads actuals vs last night's prediction → green/yellow/red signal → revises workout + macros if signal warrants → push summary to phone |
 | Pre-workout reminder | 3:30 PM cron | Server cron → format recap of today's already-revised plan (from 7:15 AM round) → push at 4:00 PM with carb reminder + optional energy check; only re-evaluate if user reports new subjective signal |
 | Tomorrow food planning | 9 PM push | Phone (ingredients) → Claude solves macros → Turso `mealPlan` → Dashboard |
-| Tomorrow prediction | 9:30 PM cron | Server cron → Claude analyzes 7-day trend → writes to Turso `prediction` → push summary to phone |
+| Tomorrow prediction + workout pre-log | 9:30 PM cron | Server cron → Claude analyzes 7-day trend AND pulls last same-day-type session AND applies progression rules → writes to `prediction` table + `workoutExercise`/`workoutSet` rows + briefing to `daily_log.notes` → pushes combined summary to phone |
 | Briefings | Claude → DB | Server-side Claude writes `daily_log.notes` → Dashboard renders it as Session Briefing on `/workout` page |
 
 ## Memory sync via git

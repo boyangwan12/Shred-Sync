@@ -51,7 +51,7 @@ The protocol must:
 | 6:30 PM | Workout ends, drive home + heat food | — | — |
 | 7:00 PM | **Dinner (post-workout + dinner combined, single meal)** | Eat planned meal silently; finish by 7:30 PM | — |
 | 9:00 PM | Tomorrow food planning | Push: "what ingredients tomorrow? I'll plan grams" | Phone |
-| 9:30 PM | Tomorrow predictions produced | Claude generates: weight forecast, HRV forecast, training plan | Server (auto) |
+| 9:30 PM | Tomorrow predictions + workout pre-log | Claude generates weight/HRV forecast AND writes tomorrow's full workout to `workoutExercise` rows | Server (auto) |
 | 11:00 PM | Sleep | — | — |
 
 **Tolerance bands:** sleep ±30 min, meals ±60 min, workout ±2 hours.
@@ -280,15 +280,43 @@ This is the **only food touchpoint of the day**. Everything else (breakfast, lun
 
 **Why this combined flow:** food deviations are rare (~1-2 per week). Most days the end-of-day confirm is just "yes, ate as planned" — adds ~5 sec to the planning session. Combining keeps both food touchpoints in one phone session and reduces total daily notifications from 5 to 4.
 
-### 9:30 PM — Auto-prediction (Server cron, no user input)
+### 9:30 PM — Auto-prediction + workout pre-log (Server cron, no user input)
 
-**Cron at 9:30 PM:** server-side Claude reads today's data + last 7 days of trend, produces tomorrow's forecast:
+This single cron job does **two things**: produces tomorrow's prediction AND writes tomorrow's workout plan to `workoutExercise` rows so the dashboard's `/workout` page is ready when you open it in the morning.
+
+**Step 1 — Prediction:** server-side Claude reads today's data + last 7 days of trend, produces tomorrow's forecast:
 - Predicted morning weight (lb, ±0.5)
 - Predicted HRV range
 - Predicted morning sleep state
-- Recommended training adjustments based on glycogen + cycle state
-- Writes to Turso (new table: `prediction`) keyed by tomorrow's date
-- Pushes a summary to phone: "Tomorrow forecast: 151.5 lb, HRV 110-130, push day, 一边70 bench progression."
+- Writes to Turso `prediction` table keyed by tomorrow's date
+
+**Step 2 — Workout pre-log:** if tomorrow is a training day, Claude writes the planned workout to `workoutExercise` rows:
+1. Read tomorrow's `day_type` from the cycle (rest/push/pull/legs)
+2. If `rest` → skip workout pre-log entirely
+3. Else: pull the last session of the same day_type and analyze:
+   - Top set weight × reps × RPE
+   - Whether the user hit the planned target last time
+4. Apply progression rules:
+   - Last session hit reps cleanly (RPE ≤8): **+1 rep target** at same weight, OR step up to next weight if at rep ceiling
+   - Last session was RPE 9-10: **match** (no progression)
+   - Last session missed reps: **drop weight 5%** and rebuild
+5. Pull strength baselines from `claude-memory/project_strength_baselines.md` to anchor working weights
+6. Generate full warmup ramp (40% / 55% / 70% / working) appropriate to top-set load
+7. Write `workoutExercise` rows + nested `workoutSet` rows for each exercise
+8. Write a 1-paragraph briefing to `daily_log.notes` (renders as Session Briefing on the workout page)
+
+**Step 3 — Combined push:**
+```
+Tomorrow forecast: 151.5 lb (-0.4 vs today), HRV 110-130,
+push day. Plan ready: bench 一边70×6×3 + DB incline 45×8×3 +
+shoulder press 一边50×8×3. Top set 一边70 chases +1 rep.
+```
+
+**This is the same job I (Claude) currently do manually via `scripts/prepopulate-{date}.ts` files.** Once Phase 4 lands, the cron + script does it automatically based on the same logic.
+
+**If user wants to review/override before bed:** they can ask "what's tomorrow's workout?" during the 9 PM food planning session and Claude pre-generates it interactively. The 9:30 PM cron then sees rows already exist and skips Step 2.
+
+**If 9:30 PM cron fails (e.g., DB hiccup):** the 7:15 AM morning adjustment detects the missing rows and generates the workout on-demand before the user opens the workout page.
 
 ### 11:00 PM — Sleep (no touchpoint — just hard cutoff for caffeine/food/screens)
 
