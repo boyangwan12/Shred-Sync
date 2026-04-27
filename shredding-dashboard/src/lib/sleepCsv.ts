@@ -93,9 +93,36 @@ function parseNumOrNull(s: string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Extract YYYY-MM-DD from AutoSleep's waketime field (e.g., "2026-04-13 07:38:00"
+ * or "4/13/26 7:38"). The sleep session's wake date is the day this sleep
+ * "belongs to" — empirically more reliable than `toDate`, which AutoSleep
+ * sometimes labels +1 day when the user's bedtime is late/post-midnight.
+ */
+export function parseWakeDateToIso(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const trimmed = s.trim();
+  // "2026-04-13 07:38:00" — ISO-ish
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  // "4/13/26 7:38" — US short
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(trimmed);
+  if (us) {
+    const mm = String(parseInt(us[1], 10)).padStart(2, '0');
+    const dd = String(parseInt(us[2], 10)).padStart(2, '0');
+    const y = parseInt(us[3], 10);
+    const yyyy = y < 100 ? 2000 + y : y;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return null;
+}
+
 export function parseAutoSleepRow(row: Record<string, string>): ParsedSleepRow {
   return {
-    date: parseToDateToIso(row.toDate),
+    // Prefer waketime (when the user actually woke up) over toDate, which has
+    // off-by-one quirks when the bedtime is post-midnight. Fall back to toDate
+    // if waketime is missing.
+    date: parseWakeDateToIso(row.waketime) ?? parseToDateToIso(row.toDate),
     sleepMinutes: parseHhMmSs(row.asleep),
     deepSleepMinutes: parseHhMmSs(row.deep),
     hrvMs: parseNumOrNull(row.hrv),
