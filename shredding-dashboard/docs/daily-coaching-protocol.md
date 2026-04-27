@@ -46,10 +46,10 @@ The protocol must:
 | 7:30 AM | Breakfast (P/F, no carbs) | Auto-log via prior plan or quick prompt | Phone |
 | 10:30 AM | Coffee #1 (with food) | — | — |
 | 12:30 PM | Lunch (P/F) | Auto-log via prior plan or quick prompt | Phone |
-| 3:30 PM | Pre-workout carbs (~30 g) | Push: pre-workout adjustment if HRV/energy off-baseline | Phone |
-| 4:30 PM | Workout | Workout page open | Dashboard (Phone or Macbook) |
-| 6:00 PM | Dinner (refuel, day-type macros) | Auto-log or prompt | Phone |
-| 6:30 PM | **Last food (hard cutoff)** | — | — |
+| 4:00 PM | Pre-workout carbs (~30 g) | Push: pre-workout adjustment if HRV/energy off-baseline | Phone |
+| 5:00 PM | Workout | Workout page open | Dashboard (Phone or Macbook) |
+| 6:30 PM | Dinner (refuel, day-type macros) | Auto-log or prompt | Phone |
+| 7:00 PM | **Last food (hard cutoff)** | — | — |
 | 9:00 PM | Tomorrow food planning | Push: "what ingredients tomorrow? I'll plan grams" | Phone |
 | 9:30 PM | Tomorrow predictions produced | Claude generates: weight forecast, HRV forecast, training plan | Server (auto) |
 | 11:00 PM | Sleep | — | — |
@@ -206,22 +206,24 @@ The protocol must:
 
 **Default:** today's lunch was planned last night, just confirm-as-eaten. If deviation, prompt user for actual ingredients + grams; Claude solves the macro math.
 
-### 3:30 PM — Pre-workout adjustment (Phone push → 90 sec)
+### 4:00 PM — Pre-workout adjustment + carbs (Phone push → 90 sec)
 
-**Push notification:** "Pre-workout: {today's plan summary}. Tap to adjust if needed."
+**Push notification:** "Pre-workout: {today's plan summary}. Tap to adjust if needed. Eat 30g carbs now."
 
-**Claude action (auto-generated at 3:00 PM by cron):**
-1. Read morning's HRV, energy, sleep
+**Claude action (auto-generated at 3:30 PM by cron):**
+1. Read morning's HRV, energy, sleep (if 7:15 AM adjustment already revised the plan, start from the revised state)
 2. Read planned workout from `workoutExercise` for today
 3. If HRV <70 OR energy ≤2 OR cumulative load high → propose deload (reduce top set weight by 5-10%, drop one accessory)
 4. If HRV >120 AND energy ≥4 AND fueled → green-light next progression
 5. Push the adjustment as a notification; user confirms or overrides
 
-### 4:30 PM — Workout (Dashboard — phone or laptop)
+**Carb timing:** eat the 30g pre-workout carbs (sweet potato, banana, or rice) at 4:00 PM exactly so blood glucose peaks during heavy compound sets at ~5:00-5:30 PM. 60-min lead time is the sweet spot for low-GI carb sources.
+
+### 5:00 PM — Workout (Dashboard — phone or laptop)
 
 User logs sets/reps directly on the workout page (existing UX, already works). Claude does NOT need to be in the loop during the workout itself.
 
-### 6:00 PM — Dinner logging (Phone → 30 sec)
+### 6:30 PM — Dinner logging (Phone → 30 sec)
 
 Same pattern as lunch.
 

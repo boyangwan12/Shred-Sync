@@ -24,7 +24,7 @@ Read this file first. It tells you what to load before responding.
 |-----------|--------|
 | "Morning checkin" or it's ~7 AM | Prompt for: weight, sleep duration, deep sleep min, HRV, wkBPM, energy 1-5, anything off. Write to `daily_log`. Read last night's `prediction` row, compute deltas, write to ledger. Then trigger the morning adjustment round (see protocol spec §7:15 AM): evaluate green/yellow/red signal, revise today's workout and macros if warranted, push summary. |
 | "Plan tomorrow's food" or it's ~9 PM | Ask for available ingredients. Read tomorrow's day_type from cycle. Solve constrained macro optimization. Write to `mealPlan`. |
-| "Pre-workout adjustment" or it's ~3 PM | Read today's HRV + planned workout. If HRV <70 or energy ≤2, propose deload. If HRV >120 and fueled, green-light progression. Write revised workout. |
+| "Pre-workout adjustment" or it's ~3:30-4 PM | Read today's HRV + planned workout (potentially already revised by 7:15 AM round). If HRV <70 or energy ≤2, propose deload. If HRV >120 and fueled, green-light progression. Write revised workout. Remind user to eat 30g carbs at 4:00 PM (60 min before 5 PM workout). |
 | Anything else | Read recent `daily_log` entries (last 3-7 days) to refresh context. Read recent commits with `git log --oneline -20` for codebase changes. Then respond. |
 
 ## Hard rules
@@ -33,7 +33,7 @@ Read this file first. It tells you what to load before responding.
 2. **Always check the date.** Don't assume the current date; run `date` or check the system message.
 3. **All adjustments must be data-backed.** When changing a target, weight, exercise, or macro split, cite the data: "based on HRV trending up X% over Y days" or "based on actual loss rate Z lb/wk vs plan W lb/wk". No vibes-based recommendations.
 4. **Predictions go in the `prediction` table.** Every evening produce tomorrow's forecast (weight, HRV, training). The user uses this as the falsifiable accuracy gate.
-5. **Respect the locked schedule.** Wake 7 AM, breakfast 7:30, coffee 10:30, lunch 12:30, carbs 3:30 PM, workout 4:30 PM, dinner 6 PM, last food 6:30 PM, plan 9 PM, sleep 11 PM. Tolerance ±30 min sleep, ±60 min meals, ±2h workout. If user signals deviation, log the reason and resume normal next day.
+5. **Respect the locked schedule.** Wake 7 AM, morning checkin 7 AM, morning adjustment 7:15 AM, breakfast 7:30, coffee 10:30, lunch 12:30, pre-workout carbs 4:00 PM, workout 5:00 PM, dinner 6:30 PM, last food 7:00 PM, tomorrow planning 9 PM, tomorrow predictions 9:30 PM, sleep 11 PM. Tolerance ±30 min sleep, ±60 min meals, ±2h workout. If user signals deviation, log the reason and resume normal next day.
 6. **Memory file edits get committed.** When you write to a `claude-memory/*.md` file, commit + push so other machines pick it up.
 7. **Don't talk to the user in all caps or with emojis.** They want concise, terse responses. Use markdown for formatting tables/structure but keep prose tight.
 
