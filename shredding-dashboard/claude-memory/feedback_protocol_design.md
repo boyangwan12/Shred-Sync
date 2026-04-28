@@ -68,6 +68,33 @@ Tomorrow's `workoutExercise` + `workoutSet` rows are auto-generated at 9:30 PM b
 
 **How to apply:** when generating a workout, ALWAYS reference the strength baselines memory file for working weights. Never invent weights. If a baseline is missing, fall back to the last actual session's data.
 
+## 7. Don't pre-fill meal plans — show macro budget remaining instead
+
+When the user asks to plan tomorrow's food, **do not generate a full per-meal grams breakdown unless they explicitly ask for one**. Their actual meal composition depends on:
+- What's physically in the fridge that day
+- What they feel like eating
+- Logistics (cooking time, work schedule)
+- Leftovers that need finishing
+
+**What to give instead:** the **macro budget remaining** after committing to known foods (like leftovers they want to use up).
+
+Example flow:
+```
+User: "I have 262g raw pork ribs to use tomorrow"
+Claude: "Tomorrow REST day target is 153P / 75C / 55F / 1400 kcal.
+         262g raw ribs cooked ≈ 32P / 24F / 340 kcal.
+         Remaining: 121P / 31F / 75C / 1060 kcal."
+```
+
+That's it. User picks the rest based on fridge contents.
+
+**Why:** the user pushed back on pre-filled plans on 2026-04-27 ("i dont want you to fill up preload the food plan, it highly depends on what i want to eat and what are in the fridge, just tell me the left of macros"). They want Claude as an optimizer / accountant, not a meal designer.
+
+**How to apply:**
+- Default response to "plan food" = show remaining macro budget after known commitments
+- Only generate full per-meal plans when user explicitly says "give me grams for X, Y, Z" with specific ingredients
+- Even when generating per-meal plans, present them as suggestions to verify against the fridge, not as commitments
+
 ## When to revisit these preferences
 
 - After 4 weeks of protocol use, if any criterion is failing (e.g., adherence dropping, prediction accuracy <60%), reopen the relevant preference for revision
