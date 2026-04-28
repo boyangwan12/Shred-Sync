@@ -102,6 +102,22 @@ export default function WeightChart({ logs }: WeightChartProps) {
   const weights = allDates.map((date) => logMap.get(date)?.weightLbs ?? null);
   const planned = allDates.map((date) => interpolatePlanned(date));
 
+  // 7-day rolling average — anchored to dates with actual weight logs.
+  // Uses time-based window (last 7 calendar days, inclusive) rather than index
+  // distance, since allDates also contains weekly trajectory marker dates.
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  const rolling7Day = allDates.map((date, idx) => {
+    if (weights[idx] === null) return null;
+    const cutoff = new Date(date + 'T00:00:00').getTime() - 6 * ONE_DAY;
+    const windowVals: number[] = [];
+    for (let i = 0; i <= idx; i++) {
+      const t = new Date(allDates[i] + 'T00:00:00').getTime();
+      if (t >= cutoff && weights[i] !== null) windowVals.push(weights[i] as number);
+    }
+    if (windowVals.length < 3) return null;
+    return parseFloat((windowVals.reduce((s, v) => s + v, 0) / windowVals.length).toFixed(2));
+  });
+
   const data = {
     labels,
     datasets: [
@@ -136,6 +152,22 @@ export default function WeightChart({ logs }: WeightChartProps) {
         spanGaps: false,
         yAxisID: 'y',
         order: 2,
+      },
+      {
+        label: '7-day avg',
+        data: rolling7Day,
+        borderColor: '#EF9F27',
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.35,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointBackgroundColor: '#EF9F27',
+        pointBorderColor: '#EF9F27',
+        borderWidth: 2,
+        spanGaps: true,
+        yAxisID: 'y',
+        order: 1,
       },
       {
         label: `Goal (${GOAL_WEIGHT} lbs)`,
