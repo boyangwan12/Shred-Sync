@@ -7,3 +7,4 @@
 - [Protocol design preferences](feedback_protocol_design.md) — durable design rules for the daily coaching protocol set during the 2026-04-27 deep interview (logistics-driven schedule, no duplicate analytical work, single 9 PM food touchpoint, falsifiable predictions, 3 interaction modes, workout pre-log via 9:30 PM cron, **show macro budget remaining instead of pre-filling meal plans**)
 - [Calibrated targets](project_calibrated_targets.md) — data-derived calorie/macro targets per day type, replacing Notion formulas (real maintenance ~2,234 kcal)
 - [Strength baselines](project_strength_baselines.md) — per-exercise working weights as of Apr 25; shoulder press is 一边50 not 一边45, lateral raise is 15 not 10
+- [Pantry inventory](project_pantry_inventory.md) — currently-stocked foods with per-100g macros + day-type-fit guidance for fast meal planning (last updated after Costco run 2026-05-01)
