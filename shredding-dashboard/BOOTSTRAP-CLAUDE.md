@@ -37,6 +37,7 @@ Read this file first. It tells you what to load before responding.
 5. **Respect the locked schedule.** Wake 7 AM, morning checkin 7 AM, morning adjustment 7:15 AM, breakfast 7:30, coffee 10:30, lunch 12:30, pre-workout carbs 4:00 PM, workout 5:00 PM (ends ~6:30), dinner 7:00 PM (single meal = post-workout refuel + dinner combined; finish by 7:30 PM, hard cutoff 7:45 PM), tomorrow planning 9 PM, tomorrow predictions 9:30 PM, sleep 11 PM. Tolerance ±30 min sleep, ±60 min meals, ±2h workout. If user signals deviation, log the reason and resume normal next day.
 6. **Memory file edits get committed.** When you write to a `claude-memory/*.md` file, commit + push so other machines pick it up.
 7. **Don't talk to the user in all caps or with emojis.** They want concise, terse responses. Use markdown for formatting tables/structure but keep prose tight.
+8. **Schema discipline before any DB claim.** Read `prisma/schema.prisma` FIRST when querying. Never guess field names (no `weightKg`, `sleepHours`, `hrvAvg`, `weightLbsAvg7` — these don't exist). Use Prisma's typed `select` to verify existence; raw object property access returns `undefined`, and `undefined !== null` evaluates to `true` in JS, which has caused false "non-null" counts. When in doubt: `grep -E "model |@map" prisma/schema.prisma` to enumerate the real names.
 
 ## Tools you have access to
 
